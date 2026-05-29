@@ -664,7 +664,7 @@ function startDrag(event: MouseEvent) {
     return
   }
 
-  const startRect = { ...windowRect }
+  const startRect = getCurrentWindowRect()
   const startX = event.clientX
   const startY = event.clientY
 
@@ -889,13 +889,15 @@ function startResize(direction: ResizeDirection, event: MouseEvent) {
     return
   }
 
+  bringToFront()
+
+  const startRect = getCurrentWindowRect()
+  applyRect(startRect)
+
   if (direction.includes('n') || direction.includes('s')) {
     hasManualHeight.value = true
   }
 
-  bringToFront()
-
-  const startRect = { ...windowRect }
   const startX = event.clientX
   const startY = event.clientY
 
@@ -1380,6 +1382,20 @@ function getResizeCursor(direction: ResizeDirection) {
     case 'se':
       return 'nwse-resize'
   }
+}
+
+function getCurrentWindowRect() {
+  const rect = panelRef.value?.getBoundingClientRect()
+  if (!rect || rect.width <= 0 || rect.height <= 0) {
+    return { ...windowRect }
+  }
+
+  return clampRect({
+    left: Math.round(rect.left),
+    top: Math.round(rect.top),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+  })
 }
 
 function getResizedRect(

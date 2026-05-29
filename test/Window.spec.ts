@@ -514,6 +514,58 @@ describe('useWindows', () => {
     }
   })
 
+  it('uses the rendered auto-height size when resize starts', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'auto-height-resize-start',
+        title: 'Auto Height Resize Start',
+        component: AutoHeightContent,
+      })
+
+      await nextTick()
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Auto Height Resize Start')
+      const southHandle = panel?.querySelector('.window-dialog__resize-handle--s') as HTMLElement | null
+
+      expect(panel).toBeDefined()
+      expect(southHandle).toBeDefined()
+      expect(panel?.style.height).toBe('')
+
+      panel!.getBoundingClientRect = () => ({
+        left: 120,
+        top: 90,
+        width: 560,
+        height: 520,
+        right: 680,
+        bottom: 610,
+        x: 120,
+        y: 90,
+        toJSON: () => ({}),
+      } as DOMRect)
+
+      southHandle!.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 240,
+        clientY: 610,
+      }))
+      await nextTick()
+
+      expect(panel?.style.height).toBe('520px')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('does not run the visibility animation on first open', async () => {
     const wrapper = mount(VisibilityToggleHost, {
       attachTo: document.body,

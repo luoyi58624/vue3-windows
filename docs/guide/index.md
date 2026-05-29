@@ -94,6 +94,6 @@ function openForm() {
 ```
 
 <script setup>
-import SimpleDemo from '../examples/simple/indedx.vue'
+import SimpleDemo from '../examples/simple/index.vue'
 import FormDemo from '../examples/form/index.vue'
 </script>
