@@ -2,14 +2,13 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, h, inject, nextTick, provide, ref, type InjectionKey } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { globalWindow, useCurrentWindow, useGlobalWindow, useWindows, WindowProvider, WindowsDesktop } from '../src'
+import { useCurrentWindow, useWindows, WindowProvider, WindowsDesktop } from '../src'
 import WindowDialog from '../src/lib/components/Window.vue'
 
 const RUNTIME_KEY = '__window_dialog_runtime__'
 const RECT_KEY = '__window_dialog_last_rect__'
 
 function resetWindowRuntime() {
-  globalWindow.closeAll()
   delete (globalThis as Record<string, unknown>)[RUNTIME_KEY]
   window.localStorage.removeItem(RECT_KEY)
   document.body.innerHTML = ''
@@ -235,7 +234,7 @@ const ContextualGlobalHost = defineComponent({
   name: 'ContextualGlobalHost',
   setup() {
     provide(parentMessageKey, 'from parent provide')
-    const windows = useGlobalWindow()
+    const windows = useWindows({ global: true })
 
     function openWindow() {
       windows.create({
@@ -306,11 +305,12 @@ const ForcedStandaloneHost = defineComponent({
   name: 'ForcedStandaloneHost',
   setup() {
     const desktopWindows = ref<ReturnType<typeof useWindows> | null>(null)
-    const standaloneWindows = ref<typeof globalWindow | null>(null)
+    const standaloneApi = useWindows({ global: true })
+    const standaloneWindows = ref<ReturnType<typeof useWindows> | null>(null)
 
     function bindWindows() {
       desktopWindows.value = useWindows()
-      standaloneWindows.value = globalWindow
+      standaloneWindows.value = standaloneApi
     }
 
     function openWindows() {
@@ -403,6 +403,45 @@ const ProviderWrapper = defineComponent({
   `,
 })
 
+const GlobalProviderHost = defineComponent({
+  name: 'GlobalProviderHost',
+  setup() {
+    const windows = useWindows({ global: true })
+
+    function openWindow() {
+      windows.create({
+        id: 'global-provider-window',
+        title: 'Global Provider Window',
+      })
+    }
+
+    return {
+      openWindow,
+    }
+  },
+  template: '<button class="open-global-provider-window" type="button" @click="openWindow">open</button>',
+})
+
+const GlobalProviderWrapper = defineComponent({
+  name: 'GlobalProviderWrapper',
+  components: {
+    GlobalProviderHost,
+    WindowProvider,
+  },
+  template: `
+    <WindowProvider
+      :animated="false"
+      :width="640"
+      :height="360"
+      :min-width="520"
+      :min-height="320"
+      bg-color="#111827"
+    >
+      <GlobalProviderHost />
+    </WindowProvider>
+  `,
+})
+
 describe('useWindows', () => {
   beforeEach(() => {
     resetWindowRuntime()
@@ -438,6 +477,43 @@ describe('useWindows', () => {
       expect(dock).toBeDefined()
       expect(dock?.textContent).toContain('Alpha')
       expect(document.body.querySelector('.window-dialog')).toBeNull()
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('keeps the active window z-index stable when clicked again', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      await wrapper.get('.open-window').trigger('click')
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Alpha')
+      expect(panel).toBeDefined()
+      const zIndex = panel!.style.zIndex
+
+      panel!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+      panel!.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+      await nextTick()
+
+      expect(panel!.style.zIndex).toBe(zIndex)
+
+      wrapper.vm.windows?.create({
+        id: 'alpha',
+        title: 'Alpha',
+        component: WindowContent,
+      })
+      await nextTick()
+      await nextTick()
+
+      expect(panel!.style.zIndex).toBe(zIndex)
     } finally {
       wrapper.unmount()
     }
@@ -1093,6 +1169,31 @@ describe('useWindows', () => {
       await nextTick()
 
       const panel = findPanelByText('Provider Window')
+
+      expect(panel).toBeDefined()
+      expect(panel?.style.width).toBe('640px')
+      expect(panel?.style.height).toBe('360px')
+      expect(panel?.style.getPropertyValue('--window-dialog-motion-ms')).toBe('0ms')
+      expect(panel?.style.getPropertyValue('--window-dialog-bg-color')).toBe('#111827')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('uses WindowProvider defaults for global windows created from setup', async () => {
+    const wrapper = mount(GlobalProviderWrapper, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      await wrapper.get('.open-global-provider-window').trigger('click')
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Global Provider Window')
 
       expect(panel).toBeDefined()
       expect(panel?.style.width).toBe('640px')

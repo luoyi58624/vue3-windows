@@ -13,7 +13,9 @@ bun add vue3-windows
 ```vue
 <script setup lang="ts">
 import { defineComponent, h } from 'vue'
-import { globalWindow, useCurrentWindow } from 'vue3-windows'
+import { useCurrentWindow, useWindows } from 'vue3-windows'
+
+const windows = useWindows({ global: true })
 
 const DetailWindow = defineComponent({
   setup() {
@@ -23,7 +25,7 @@ const DetailWindow = defineComponent({
 })
 
 function openDetail() {
-  globalWindow.create({
+  windows.create({
     id: 'detail',
     title: '详情',
     component: DetailWindow,
@@ -38,7 +40,7 @@ function openDetail() {
 
 ## 说明
 
-- `globalWindow` 是内置的全局窗口 API，不需要 `WindowsDesktop`
-- 全局窗口没有 dock，会自动隐藏最小化按钮
-- 窗口内容需要继承当前组件的 `provide` / `inject` 时，在 `setup()` 中使用 `useGlobalWindow()` 获取绑定后的全局窗口 API
+- `useWindows()` 默认会复用祖先 `WindowsDesktop` 的窗口 API
+- `useWindows({ global: true })` 会绕过祖先 `WindowsDesktop`，创建独立窗口管理器
+- 独立窗口没有 dock，会自动隐藏最小化按钮
 - 需要桌面和 dock 时使用 `WindowsDesktop`

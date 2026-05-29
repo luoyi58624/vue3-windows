@@ -8,21 +8,19 @@
 
 支持的默认配置：`animated`、`outsideClickBehavior`、`width`、`height`、`minWidth`、`minHeight`、`maxWidth`、`maxHeight`、`minimizable`、`maximizable`、`closable`、`accentType`、`bgColor`。
 
-## `globalWindow`
+## `useWindows(options?)`
 
-内置的全局窗口 API，可以在任意模块里直接导入使用。它不依赖 `WindowsDesktop`，也没有 dock，因此会强制隐藏最小化按钮。
-
-## `useGlobalWindow()`
-
-在组件 `setup()` 中获取绑定到当前组件上下文的全局窗口 API。它仍然使用全局窗口管理器，但通过该 API 创建的窗口内容可以继承当前组件可见的 `provide` / `inject` 和应用级上下文。
-
-如果只是在普通模块里打开无上下文依赖的窗口，继续使用 `globalWindow`。如果窗口内容依赖父组件注入、全局组件或应用插件上下文，使用 `useGlobalWindow()`。
-
-## `useWindows()`
-
-在 `WindowsDesktop` 的子组件中获取当前桌面的窗口 API。它不接收参数。
+在 `WindowsDesktop` 的子组件中获取当前桌面的窗口 API。默认会优先复用祖先 `WindowsDesktop` 提供的窗口管理器。
 
 如果没有上层 `WindowsDesktop`，`useWindows()` 会创建独立窗口管理器。独立模式没有 dock，因此会强制隐藏最小化按钮。
+
+传入 `useWindows({ global: true })` 时，会绕过祖先 `WindowsDesktop`，强制创建独立窗口管理器。该模式仍然继承当前组件树里的 `WindowProvider`、`provide` / `inject` 和应用级上下文。
+
+Options:
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `global` | `boolean` | 是否绕过祖先 `WindowsDesktop`，默认 `false`。 |
 
 ## `WindowsDesktop`
 
@@ -69,7 +67,7 @@ Win10 风格 dock 组件。它和 `WindowsDock` 一样通过 inject 获取窗口
 | `height` | `number` | 初始窗口高度；不传时按内容高度自适应。 |
 | `minWidth` / `minHeight` | `number` | 最小窗口尺寸，默认 `360` / `300`。 |
 | `maxWidth` / `maxHeight` | `number` | 最大窗口尺寸；自适应高度也会被限制在最大范围内。 |
-| `minimizable` | `boolean` | 是否显示最小化按钮。`globalWindow` 和独立 `useWindows()` 模式会强制为 `false`。 |
+| `minimizable` | `boolean` | 是否显示最小化按钮。独立 `useWindows()` 模式会强制为 `false`。 |
 | `maximizable` | `boolean` | 是否显示最大化按钮。 |
 | `closable` | `boolean` | 是否显示关闭按钮。 |
 

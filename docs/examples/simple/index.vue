@@ -1,13 +1,26 @@
 <template>
   <section class="simple-window-demo">
-    <button type="button" class="simple-window-demo__button" @click="globalWindow.create({id: 'Demo'})">
+    <button type="button" class="simple-window-demo__button" @click="windows.create({ id: 'count', component: Child })">
       打开窗口
     </button>
   </section>
 </template>
 
 <script setup lang="ts">
-import { globalWindow } from 'vue3-windows'
+import { useWindows } from 'vue3-windows'
+import { provide, ref } from 'vue'
+import Child from './count.vue'
+
+const count = ref(0)
+provide('count', {
+  get value() {
+    return count.value
+  },
+  increment() {
+    count.value += 1
+  },
+})
+const windows = useWindows({ global: true })
 </script>
 
 <style scoped>

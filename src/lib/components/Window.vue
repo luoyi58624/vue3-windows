@@ -567,6 +567,10 @@ onBeforeUnmount(() => {
 })
 
 function bringToFront() {
+  if (isActiveWindow.value) {
+    return
+  }
+
   zIndex.value = nextWindowZIndex()
   syncActiveWindowRuntime()
 }

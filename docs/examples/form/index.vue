@@ -7,11 +7,13 @@
 </template>
 
 <script setup lang="ts">
-import { globalWindow } from 'vue3-windows'
-import Form from "./Form.vue";
+import { useWindows } from 'vue3-windows'
+import Form from './Form.vue'
+
+const windows = useWindows({ global: true })
 
 function openForm() {
-  globalWindow.create({
+  windows.create({
     id: 'Form 表单',
     width: 520,
     component: Form,

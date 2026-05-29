@@ -10,11 +10,13 @@
 
 ```vue
 <script setup lang="ts">
-import { globalWindow } from 'vue3-windows'
+import { useWindows } from 'vue3-windows'
+
+const windows = useWindows({ global: true })
 </script>
 
 <template>
-  <button type="button" @click="globalWindow.create({id: 'Demo'})">打开窗口</button>
+  <button type="button" @click="windows.create({ id: 'Demo' })">打开窗口</button>
 </template>
 ```
 
@@ -27,7 +29,9 @@ import { globalWindow } from 'vue3-windows'
 ```vue
 <script setup lang="ts">
 import { defineComponent, ref } from 'vue'
-import { globalWindow, useCurrentWindow } from 'vue3-windows'
+import { useCurrentWindow, useWindows } from 'vue3-windows'
+
+const windows = useWindows({ global: true })
 
 const FormContent = defineComponent({
   setup() {
@@ -78,7 +82,7 @@ const FormContent = defineComponent({
 })
 
 function openForm() {
-  globalWindow.create({
+  windows.create({
     id: 'form-demo',
     title: 'Form 表单',
     width: 520,
