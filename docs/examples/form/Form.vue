@@ -1,5 +1,5 @@
 <template>
-  <form class="form-window" @submit.prevent="confirm">
+  <form class="form-window">
     <label class="form-window__field">
       <span>客户名称</span>
       <input v-model="form.name" type="text" placeholder="请输入客户名称"/>

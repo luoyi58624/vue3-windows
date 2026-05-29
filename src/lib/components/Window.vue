@@ -92,19 +92,18 @@
         <footer v-if="$slots.footer" class="window-dialog__footer">
           <slot name="footer" />
         </footer>
-      </section>
 
-      <template v-if="resizable && renderedWindowState === 'normal' && !isWindowAnimating">
-        <div
-          v-for="direction in resizeDirections"
-          :key="direction"
-          class="window-dialog__resize-handle"
-          :class="`window-dialog__resize-handle--${direction}`"
-          :style="getResizeHandleStyle(direction)"
-          aria-hidden="true"
-          @mousedown.stop.prevent="startResize(direction, $event)"
-        />
-      </template>
+        <template v-if="resizable && renderedWindowState === 'normal' && !isWindowAnimating">
+          <div
+            v-for="direction in resizeDirections"
+            :key="direction"
+            class="window-dialog__resize-handle"
+            :class="`window-dialog__resize-handle--${direction}`"
+            aria-hidden="true"
+            @mousedown.stop.prevent="startResize(direction, $event)"
+          />
+        </template>
+      </section>
     </div>
   </Teleport>
 
@@ -145,8 +144,6 @@ const HEADER_VISIBLE_HEIGHT = 56
 const RESTORE_POINTER_GUTTER = 8
 const MAXIMIZED_RESTORE_RIGHT_ANCHOR_WIDTH = 180
 const TOP_DRAG_MARGIN = 0
-const EDGE_HANDLE_SIZE = 10
-const CORNER_HANDLE_SIZE = 18
 const WINDOW_STANDARD_TRANSITION_MS = 140
 const WINDOW_MAXIMIZE_TRANSITION_MS = 120
 const WINDOW_MINIMIZE_TRANSITION_MS = 180
@@ -1368,73 +1365,6 @@ function emitWindowRestore(targetState: RestoreState) {
   emit('restore')
 }
 
-function getResizeHandleStyle(direction: ResizeDirection) {
-  const left = windowRect.left
-  const top = windowRect.top
-  const right = left + windowRect.width
-  const bottom = top + windowRect.height
-  const edgeInset = CORNER_HANDLE_SIZE
-
-  switch (direction) {
-    case 'n':
-      return {
-        left: `${left + edgeInset}px`,
-        top: `${top - EDGE_HANDLE_SIZE / 2}px`,
-        width: `${Math.max(0, windowRect.width - edgeInset * 2)}px`,
-        height: `${EDGE_HANDLE_SIZE}px`,
-      }
-    case 's':
-      return {
-        left: `${left + edgeInset}px`,
-        top: `${bottom - EDGE_HANDLE_SIZE / 2}px`,
-        width: `${Math.max(0, windowRect.width - edgeInset * 2)}px`,
-        height: `${EDGE_HANDLE_SIZE}px`,
-      }
-    case 'e':
-      return {
-        left: `${right - EDGE_HANDLE_SIZE / 2}px`,
-        top: `${top + edgeInset}px`,
-        width: `${EDGE_HANDLE_SIZE}px`,
-        height: `${Math.max(0, windowRect.height - edgeInset * 2)}px`,
-      }
-    case 'w':
-      return {
-        left: `${left - EDGE_HANDLE_SIZE / 2}px`,
-        top: `${top + edgeInset}px`,
-        width: `${EDGE_HANDLE_SIZE}px`,
-        height: `${Math.max(0, windowRect.height - edgeInset * 2)}px`,
-      }
-    case 'ne':
-      return {
-        left: `${right - CORNER_HANDLE_SIZE / 2}px`,
-        top: `${top - CORNER_HANDLE_SIZE / 2}px`,
-        width: `${CORNER_HANDLE_SIZE}px`,
-        height: `${CORNER_HANDLE_SIZE}px`,
-      }
-    case 'nw':
-      return {
-        left: `${left - CORNER_HANDLE_SIZE / 2}px`,
-        top: `${top - CORNER_HANDLE_SIZE / 2}px`,
-        width: `${CORNER_HANDLE_SIZE}px`,
-        height: `${CORNER_HANDLE_SIZE}px`,
-      }
-    case 'se':
-      return {
-        left: `${right - CORNER_HANDLE_SIZE / 2}px`,
-        top: `${bottom - CORNER_HANDLE_SIZE / 2}px`,
-        width: `${CORNER_HANDLE_SIZE}px`,
-        height: `${CORNER_HANDLE_SIZE}px`,
-      }
-    case 'sw':
-      return {
-        left: `${left - CORNER_HANDLE_SIZE / 2}px`,
-        top: `${bottom - CORNER_HANDLE_SIZE / 2}px`,
-        width: `${CORNER_HANDLE_SIZE}px`,
-        height: `${CORNER_HANDLE_SIZE}px`,
-      }
-  }
-}
-
 function getResizeCursor(direction: ResizeDirection) {
   switch (direction) {
     case 'n':
@@ -1926,9 +1856,65 @@ defineExpose({
 }
 
 :global(.window-dialog__resize-handle) {
-  position: fixed;
-  z-index: 2100;
+  position: absolute;
+  z-index: 2;
   pointer-events: auto;
+}
+
+:global(.window-dialog__resize-handle--n) {
+  top: 0;
+  right: 18px;
+  left: 18px;
+  height: 10px;
+}
+
+:global(.window-dialog__resize-handle--s) {
+  right: 18px;
+  bottom: 0;
+  left: 18px;
+  height: 10px;
+}
+
+:global(.window-dialog__resize-handle--e) {
+  top: 18px;
+  right: 0;
+  bottom: 18px;
+  width: 10px;
+}
+
+:global(.window-dialog__resize-handle--w) {
+  top: 18px;
+  bottom: 18px;
+  left: 0;
+  width: 10px;
+}
+
+:global(.window-dialog__resize-handle--ne),
+:global(.window-dialog__resize-handle--nw),
+:global(.window-dialog__resize-handle--se),
+:global(.window-dialog__resize-handle--sw) {
+  width: 18px;
+  height: 18px;
+}
+
+:global(.window-dialog__resize-handle--ne) {
+  top: 0;
+  right: 0;
+}
+
+:global(.window-dialog__resize-handle--nw) {
+  top: 0;
+  left: 0;
+}
+
+:global(.window-dialog__resize-handle--se) {
+  right: 0;
+  bottom: 0;
+}
+
+:global(.window-dialog__resize-handle--sw) {
+  bottom: 0;
+  left: 0;
 }
 
 :global(.window-dialog__resize-handle--n),

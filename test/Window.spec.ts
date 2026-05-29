@@ -479,6 +479,41 @@ describe('useWindows', () => {
     }
   })
 
+  it('keeps resize handles attached to auto-height window edges', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'auto-height-resize-handles',
+        title: 'Auto Height Resize Handles',
+        component: AutoHeightContent,
+      })
+
+      await nextTick()
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Auto Height Resize Handles')
+      const southHandle = panel?.querySelector('.window-dialog__resize-handle--s') as HTMLElement | null
+      const eastHandle = panel?.querySelector('.window-dialog__resize-handle--e') as HTMLElement | null
+
+      expect(panel).toBeDefined()
+      expect(southHandle).toBeDefined()
+      expect(eastHandle).toBeDefined()
+      expect(southHandle?.closest('.window-dialog')).toBe(panel)
+      expect(eastHandle?.closest('.window-dialog')).toBe(panel)
+      expect(southHandle?.style.top).toBe('')
+      expect(eastHandle?.style.height).toBe('')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('does not run the visibility animation on first open', async () => {
     const wrapper = mount(VisibilityToggleHost, {
       attachTo: document.body,

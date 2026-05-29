@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useWindows, Win10Dock, WindowsDesktop, type WindowsDesktopRef } from 'vue3-windows'
+import { Win10Dock, WindowsDesktop, type WindowsDesktopRef } from 'vue3-windows'
 
 const windowsRef = ref<WindowsDesktopRef | null>(null)
 

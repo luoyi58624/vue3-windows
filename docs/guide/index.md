@@ -5,7 +5,7 @@
 ## 入门示例
 
 <ClientOnly>
-  <SimpleWindowDemo />
+  <SimpleDemo />
 </ClientOnly>
 
 ```vue
@@ -21,7 +21,7 @@ import { globalWindow } from 'vue3-windows'
 ## Form 表单
 
 <ClientOnly>
-  <FormWindowDemo />
+  <FormDemo />
 </ClientOnly>
 
 ```vue
@@ -94,6 +94,6 @@ function openForm() {
 ```
 
 <script setup>
-import FormWindowDemo from '../examples/FormWindowDemo.vue'
-import SimpleWindowDemo from '../examples/SimpleWindowDemo.vue'
+import SimpleDemo from '../examples/simple/indedx.vue'
+import FormDemo from '../examples/form/index.vue'
 </script>
