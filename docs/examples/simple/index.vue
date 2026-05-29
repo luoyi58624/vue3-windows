@@ -3,6 +3,7 @@
     <button type="button" class="simple-window-demo__button" @click="windows.create({ id: 'count', component: Child })">
       打开窗口
     </button>
+    <Child/>
   </section>
 </template>
 
@@ -12,14 +13,7 @@ import { provide, ref } from 'vue'
 import Child from './count.vue'
 
 const count = ref(0)
-provide('count', {
-  get value() {
-    return count.value
-  },
-  increment() {
-    count.value += 1
-  },
-})
+provide('count', count)
 const windows = useWindows({ global: true })
 </script>
 

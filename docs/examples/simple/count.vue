@@ -1,20 +1,11 @@
 <script setup lang="ts">
-import { inject } from 'vue'
+import { inject, type Ref } from 'vue'
 
-type CountContext = {
-  readonly value: number
-  increment(): void
-}
-
-function increment() {
-  countContext?.increment()
-}
-
-const countContext = inject<CountContext>('count')
+const count = inject<Ref<number>>('count')!
 </script>
 
 <template>
-  <button type="button" @click="increment">count: {{ countContext?.value ?? 0 }}</button>
+  <button type="button" @click="count++">count: {{ count }}</button>
 </template>
 
 <style scoped>

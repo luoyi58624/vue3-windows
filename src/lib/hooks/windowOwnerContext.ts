@@ -1,4 +1,4 @@
-import { getCurrentInstance, type AppContext, type ComponentInternalInstance } from 'vue'
+import { getCurrentInstance, markRaw, type AppContext, type ComponentInternalInstance } from 'vue'
 
 import type { CreateWindowOptions, WindowsItem } from '../types'
 
@@ -62,7 +62,7 @@ export function withWindowOwnerContext(
 
   return {
     ...options,
-    [windowOwnerContextKey]: context,
+    [windowOwnerContextKey]: markRaw(context),
   } as ContextualCreateWindowOptions
 }
 

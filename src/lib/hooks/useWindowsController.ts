@@ -13,17 +13,22 @@ export function useWindowsController(
   const manager = useWindowsManager()
   const setupOptions = useWindowsSetupOptions()
   const currentInstance = getCurrentInstance()
-  const ownerContext = captureWindowOwnerContext(currentInstance)
   let renderer: WindowsRendererHandle | null = null
+
+  function getOwnerContext() {
+    return captureWindowOwnerContext(currentInstance)
+  }
 
   const api: WindowsRef = {
     ...manager.api,
     create(options) {
-      return manager.api.create(withWindowOwnerContext(options, ownerContext))
+      return manager.api.create(withWindowOwnerContext(options, getOwnerContext()))
     },
   }
 
   onMounted(() => {
+    const ownerContext = getOwnerContext()
+
     renderer = mountWindowsRenderer(manager, anchorTarget, {
       ...options,
       appContext: currentInstance?.appContext ?? null,

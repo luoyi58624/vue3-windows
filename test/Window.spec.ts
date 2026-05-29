@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent, h, inject, nextTick, provide, ref, type InjectionKey } from 'vue'
+import { defineComponent, h, inject, isRef, nextTick, provide, ref, type InjectionKey } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { useCurrentWindow, useWindows, WindowProvider, WindowsDesktop } from '../src'
@@ -71,6 +71,30 @@ const InjectedWindowContent = defineComponent({
 
     return () => h('div', { class: 'injected-window-content' }, message)
   },
+})
+
+const countKey = Symbol('count') as InjectionKey<Ref<number>>
+
+const InjectedCountButton = defineComponent({
+  name: 'InjectedCountButton',
+  setup() {
+    const count = inject(countKey)!
+
+    return {
+      count,
+      isInjectedRef: isRef(count),
+    }
+  },
+  template: `
+    <button
+      class="injected-count"
+      type="button"
+      :data-is-ref="String(isInjectedRef)"
+      @click="count++"
+    >
+      count: {{ count }}
+    </button>
+  `,
 })
 
 const BindWindows = defineComponent({
@@ -250,6 +274,57 @@ const ContextualGlobalHost = defineComponent({
   },
   template: `
     <button class="open-contextual-global" type="button" @click="openWindow">open</button>
+  `,
+})
+
+const LateProvideGlobalHost = defineComponent({
+  name: 'LateProvideGlobalHost',
+  setup() {
+    const windows = useWindows({ global: true })
+    provide(parentMessageKey, 'from late provide')
+
+    function openWindow() {
+      windows.create({
+        id: 'late-provide-global',
+        title: 'Late Provide Global',
+        component: InjectedWindowContent,
+      })
+    }
+
+    return {
+      openWindow,
+    }
+  },
+  template: `
+    <button class="open-late-provide-global" type="button" @click="openWindow">open</button>
+  `,
+})
+
+const GlobalInjectedCountHost = defineComponent({
+  name: 'GlobalInjectedCountHost',
+  components: {
+    InjectedCountButton,
+  },
+  setup() {
+    const count = ref(0)
+    provide(countKey, count)
+    const windows = useWindows({ global: true })
+
+    function openWindow() {
+      windows.create({
+        id: 'global-injected-count',
+        title: 'Global Injected Count',
+        component: InjectedCountButton,
+      })
+    }
+
+    return {
+      openWindow,
+    }
+  },
+  template: `
+    <button class="open-global-injected-count" type="button" @click="openWindow">open</button>
+    <InjectedCountButton />
   `,
 })
 
@@ -1175,6 +1250,57 @@ describe('useWindows', () => {
       expect(panel?.style.height).toBe('360px')
       expect(panel?.style.getPropertyValue('--window-dialog-motion-ms')).toBe('0ms')
       expect(panel?.style.getPropertyValue('--window-dialog-bg-color')).toBe('#111827')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('lets global windows inject provides registered after useWindows', async () => {
+    const wrapper = mount(LateProvideGlobalHost, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      await wrapper.get('.open-late-provide-global').trigger('click')
+      await nextTick()
+      await nextTick()
+
+      const content = document.body.querySelector('.injected-window-content')
+      expect(content?.textContent).toBe('from late provide')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('keeps injected refs writable from global window content templates', async () => {
+    const wrapper = mount(GlobalInjectedCountHost, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      await wrapper.get('.open-global-injected-count').trigger('click')
+      await nextTick()
+      await nextTick()
+
+      const inlineButton = wrapper.get('.injected-count')
+      const windowButton = document.body.querySelector('.window-dialog .injected-count') as HTMLButtonElement | null
+      expect(windowButton).toBeDefined()
+      expect(inlineButton.attributes('data-is-ref')).toBe('true')
+      expect(windowButton?.dataset.isRef).toBe('true')
+      expect(inlineButton.text()).toBe('count: 0')
+      expect(windowButton?.textContent?.trim()).toBe('count: 0')
+
+      windowButton!.click()
+      await nextTick()
+
+      expect(inlineButton.text()).toBe('count: 1')
+      expect(windowButton?.textContent?.trim()).toBe('count: 1')
     } finally {
       wrapper.unmount()
     }
