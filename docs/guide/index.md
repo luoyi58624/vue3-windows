@@ -1,84 +1,36 @@
-# 快速开始
+# 介绍
 
-## 安装
+`vue3-windows` 的入口很小：
 
-```bash
-bun add vue3-windows
-```
+- `useWindows()` 创建或访问窗口管理器
+- `WindowsDesktop` 创建带 dock 的桌面窗口管理器
+- `useCurrentWindow()` 让窗口内部组件操作当前窗口
 
-## 单窗口
+## 最简示例
 
-```vue
-<template>
-  <Window v-model="visible" title="资料窗口" width="560" height="420">
-    <p>这里放窗口内容。</p>
-  </Window>
-</template>
-
-<script setup lang="ts">
-import { ref } from 'vue'
-import { Window } from 'vue3-windows'
-import 'vue3-windows/style.css'
-
-const visible = ref(true)
-</script>
-```
-
-## 多窗口管理
+<ClientOnly>
+  <SimpleWindowDemo />
+</ClientOnly>
 
 ```vue
-<template>
-  <button @click="openWindow">打开窗口</button>
-
-  <section class="stage">
-    <WindowManager v-model:items="windows">
-      <template #window="{ item, minimizedCount, totalCount }">
-        <p>{{ item.title }}</p>
-        <p>总数：{{ totalCount }}，最小化：{{ minimizedCount }}</p>
-      </template>
-    </WindowManager>
-  </section>
-</template>
-
 <script setup lang="ts">
-import { ref } from 'vue'
-import { WindowManager, type WindowManagerItem } from 'vue3-windows'
-import 'vue3-windows/style.css'
+import { useWindows } from 'vue3-windows'
 
-interface DemoWindow extends WindowManagerItem {
-  id: number
-}
-
-const windows = ref<DemoWindow[]>([])
-let id = 1
+const windows = useWindows()
 
 function openWindow() {
-  windows.value.push({
-    id: id++,
-    title: '新窗口',
-    visible: true,
-    state: 'normal',
-    width: 520,
-    height: 320,
-    accentType: 'primary',
+  windows.create({
+    id: 1,
+    title: 'Demo',
   })
 }
 </script>
 
-<style scoped>
-.stage {
-  position: relative;
-  height: 600px;
-  overflow: hidden;
-}
-</style>
+<template>
+  <button type="button" @click="openWindow">打开窗口</button>
+</template>
 ```
 
-## 本地开发
-
-```bash
-bun install
-bun run dev
-```
-
-`bun run dev` 会启动 VitePress 文档站点，demo 页面在 `/demo/`。
+<script setup>
+import SimpleWindowDemo from '../examples/SimpleWindowDemo.vue'
+</script>

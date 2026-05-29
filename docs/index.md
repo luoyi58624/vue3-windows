@@ -14,10 +14,10 @@ hero:
       link: /demo/
 
 features:
-  - title: Window
-    details: 单个窗口组件，支持标题、插槽、拖拽、缩放、最大化、最小化、遮罩和快捷键关闭。
-  - title: WindowManager
-    details: 管理本地窗口数组，自动维护最小化队列和 dock 堆叠位置。
+  - title: Ref API
+    details: 通过 Windows 实例创建、隐藏、显示、最小化、置顶和关闭窗口。
+  - title: Component Windows
+    details: create() 接收 Vue 组件作为窗口内容，用户不需要编写 Window 模板。
   - title: 可发布
     details: Bun 构建、VitePress 文档，可直接发布 npm 包和 GitHub Pages。
 ---

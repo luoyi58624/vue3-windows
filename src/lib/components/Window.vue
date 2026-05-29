@@ -7,7 +7,7 @@
         v-if="modal"
         class="window-dialog-overlay"
         :class="{
-          'is-clickable': closeOnClickModal,
+          'is-clickable': outsideClickBehavior !== 'none' || closeOnClickModal,
           'is-parked': windowState === 'minimized' && !isWindowAnimating,
         }"
         @click="handleOverlayClick"
@@ -108,64 +108,12 @@
     </div>
   </Teleport>
 
-  <Teleport v-if="visible && windowState !== 'minimized'" :to="dockTarget">
-    <div ref="dockMeasureRef" class="window-dialog-dock window-dialog-dock--measure" :style="dockStyle" aria-hidden="true">
-      <div class="window-dialog-dock__entry">
-        <span class="window-dialog__accent window-dialog__accent--dock" aria-hidden="true" />
-        <span class="window-dialog-dock__title">{{ title || 'Window' }}</span>
-      </div>
-
-      <div class="window-dialog-dock__controls">
-        <span v-if="closable" class="window-dialog__control" aria-hidden="true" />
-      </div>
-    </div>
-  </Teleport>
-
-  <Teleport v-if="visible && windowState === 'minimized' && !isWindowAnimating" :to="dockTarget">
-    <div
-      ref="dockRef"
-      class="window-dialog-dock"
-      :style="dockStyle"
-      role="button"
-      tabindex="0"
-      @mouseenter="handleDockMouseEnter"
-      @mouseleave="handleDockMouseLeave"
-      @pointerdown.capture="bringToFront"
-      @focusin="bringToFront"
-      @click="restoreWindow"
-      @keydown.enter.prevent="restoreWindow"
-      @keydown.space.prevent="restoreWindow"
-    >
-      <div class="window-dialog-dock__entry">
-        <span class="window-dialog__accent window-dialog__accent--dock" aria-hidden="true" />
-        <span class="window-dialog-dock__title">{{ title || 'Window' }}</span>
-      </div>
-
-      <div class="window-dialog-dock__controls">
-        <button
-          v-if="closable"
-          type="button"
-          class="window-dialog__control window-dialog__control--close"
-          title="关闭"
-          aria-label="关闭"
-          @click.stop="visible = false"
-          @keydown.enter.stop
-          @keydown.space.stop
-        >
-          <svg viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M3 3l6 6M9 3L3 9" />
-          </svg>
-        </button>
-      </div>
-    </div>
-  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
-import type { CSSProperties } from 'vue'
 
-import type { AccentType, WindowState } from './types'
+import type { AccentType, WindowId, WindowOutsideClickBehavior, WindowState } from '../types'
 
 type RestoreState = 'normal' | 'maximized'
 type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
@@ -203,6 +151,7 @@ const WINDOW_STANDARD_TRANSITION_MS = 140
 const WINDOW_MAXIMIZE_TRANSITION_MS = 120
 const WINDOW_MINIMIZE_TRANSITION_MS = 180
 const WINDOW_RESTORE_TRANSITION_MS = 180
+const WINDOW_VISIBILITY_TRANSITION_MS = 120
 const WINDOW_STANDARD_FADE_MS = 72
 const WINDOW_MINIMIZE_FADE_MS = 130
 const WINDOW_TRANSITION_SETTLE_MS = 32
@@ -213,10 +162,13 @@ const WINDOW_FADE_OUT_EASING = 'cubic-bezier(0.4, 0, 1, 1)'
 const WINDOW_FADE_IN_EASING = 'cubic-bezier(0, 0, 0.2, 1)'
 const WINDOW_DOCK_WIDTH = 160
 const WINDOW_DOCK_STEP = 84
+const WINDOW_MINIMIZE_TARGET_SCALE = 0.5
 const WINDOW_OPEN_OFFSET = 20
 const WINDOW_RUNTIME_KEY = '__window_dialog_runtime__'
 const WINDOW_RECT_STORAGE_KEY = '__window_dialog_last_rect__'
 const WINDOW_ACTIVE_EVENT = 'window-dialog:active-change'
+const WINDOW_DEFAULT_WIDTH = 560
+const WINDOW_DEFAULT_HEIGHT = 420
 const resizeDirections: ResizeDirection[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
 const ACCENT_PALETTE: Record<AccentType, { start: string; end: string; shadow: string }> = {
   primary: {
@@ -249,10 +201,14 @@ const ACCENT_PALETTE: Record<AccentType, { start: string; end: string; shadow: s
 const props = withDefaults(
   defineProps<{
     title?: string
-    width?: string | number
-    height?: string | number
+    animated?: boolean
+    outsideClickBehavior?: WindowOutsideClickBehavior
+    width?: number
+    height?: number
     minWidth?: number
     minHeight?: number
+    maxWidth?: number
+    maxHeight?: number
     modal?: boolean
     draggable?: boolean
     minimizable?: boolean
@@ -264,16 +220,21 @@ const props = withDefaults(
     closeOnClickModal?: boolean
     closeOnPressEscape?: boolean
     minimizeTo?: string | HTMLElement | null
+    maximizeTo?: string | HTMLElement | null
     accentType?: AccentType
+    bgColor?: string
+    windowId?: WindowId
     dockIndex?: number
     dockStep?: number
   }>(),
   {
     title: '',
-    width: 560,
-    height: 420,
+    animated: true,
+    outsideClickBehavior: 'none',
     minWidth: 360,
     minHeight: 240,
+    maxWidth: Number.POSITIVE_INFINITY,
+    maxHeight: Number.POSITIVE_INFINITY,
     modal: false,
     draggable: true,
     minimizable: true,
@@ -285,7 +246,9 @@ const props = withDefaults(
     closeOnClickModal: false,
     closeOnPressEscape: true,
     minimizeTo: null,
+    maximizeTo: null,
     accentType: 'primary',
+    bgColor: undefined,
     dockIndex: 0,
     dockStep: WINDOW_DOCK_STEP,
   },
@@ -300,6 +263,7 @@ const emit = defineEmits<{
   minimize: []
   maximize: []
   restore: []
+  'outside-click': [behavior: WindowOutsideClickBehavior]
 }>()
 
 const visible = defineModel<boolean>({ default: false })
@@ -307,8 +271,6 @@ const visible = defineModel<boolean>({ default: false })
 const instanceId = Symbol('window-dialog')
 const originAnchorRef = ref<HTMLElement>()
 const panelRef = ref<HTMLElement>()
-const dockRef = ref<HTMLElement>()
-const dockMeasureRef = ref<HTMLElement>()
 const windowState = ref<WindowState>('normal')
 const restoreState = ref<RestoreState>('normal')
 const isDragging = ref(false)
@@ -319,14 +281,15 @@ const hasRegisteredOpen = ref(false)
 const isActiveWindow = ref(false)
 const panelTarget = shallowRef<string | HTMLElement>('body')
 const dockTarget = shallowRef<string | HTMLElement>('body')
+const maximizeTarget = shallowRef<HTMLElement | null>(null)
 const zIndex = ref(nextWindowZIndex())
-const dockHoverZIndex = ref<number | null>(null)
+const viewportVersion = ref(0)
 
 const windowRect = reactive<WindowRect>({
   left: 0,
   top: 0,
-  width: 560,
-  height: 420,
+  width: WINDOW_DEFAULT_WIDTH,
+  height: WINDOW_DEFAULT_HEIGHT,
 })
 const animatedRect = reactive<WindowRect>({
   left: 0,
@@ -353,7 +316,9 @@ let windowTransitionVersion = 0
 let minimizeTransitionPending = false
 
 const shouldRenderPanel = computed(
-  () => visible.value && (windowState.value !== 'minimized' || isWindowAnimating.value),
+  () => (
+    visible.value && (windowState.value !== 'minimized' || isWindowAnimating.value)
+  ) || (!visible.value && isWindowAnimating.value && renderedWindowState.value !== 'minimized'),
 )
 
 const dialogClass = computed(() => [
@@ -372,17 +337,23 @@ const layerStyle = computed(() => ({
 
 const accentVars = computed(() => {
   const accent = ACCENT_PALETTE[props.accentType]
-  return {
+  const vars: Record<string, string> = {
     '--window-dialog-accent-start': accent.start,
     '--window-dialog-accent-end': accent.end,
     '--window-dialog-accent-shadow': accent.shadow,
-  } as Record<string, string>
+  }
+
+  if (props.bgColor) {
+    vars['--window-dialog-bg-color'] = props.bgColor
+  }
+
+  return vars
 })
 
 const panelStyle = computed(() => {
   const motionVars = {
-    '--window-dialog-motion-ms': `${transitionDurationMs.value}ms`,
-    '--window-dialog-fade-ms': `${fadeDurationMs.value}ms`,
+    '--window-dialog-motion-ms': props.animated ? `${transitionDurationMs.value}ms` : '0ms',
+    '--window-dialog-fade-ms': props.animated ? `${fadeDurationMs.value}ms` : '0ms',
     '--window-dialog-motion-ease': motionEasing.value,
     '--window-dialog-fade-ease': fadeEasing.value,
   }
@@ -404,13 +375,16 @@ const panelStyle = computed(() => {
   }
 
   if (windowState.value === 'maximized') {
+    viewportVersion.value
+    const maximizedRect = getMaximizedRect()
+
     return {
       ...accentVars.value,
       ...motionVars,
-      left: '0px',
-      top: '0px',
-      width: '100vw',
-      height: '100vh',
+      left: `${maximizedRect.left}px`,
+      top: `${maximizedRect.top}px`,
+      width: `${maximizedRect.width}px`,
+      height: `${maximizedRect.height}px`,
       zIndex: String(zIndex.value + 1),
     }
   }
@@ -425,15 +399,6 @@ const panelStyle = computed(() => {
     zIndex: String(zIndex.value + 1),
   }
 })
-
-const dockStyle = computed<CSSProperties>(() => ({
-  ...accentVars.value,
-  position: 'absolute',
-  left: `${16 + props.dockIndex * props.dockStep}px`,
-  bottom: '0px',
-  width: `min(${WINDOW_DOCK_WIDTH}px, calc(100vw - 32px))`,
-  zIndex: String(dockHoverZIndex.value ?? zIndex.value + 1),
-}))
 
 const dialogLabel = computed(() => props.title || 'Dialog')
 
@@ -452,6 +417,13 @@ watch(
 )
 
 watch(
+  () => props.maximizeTo,
+  () => {
+    resolveMaximizeTarget()
+  },
+)
+
+watch(
   () => [visible.value, windowState.value, props.closeOnPressEscape] as const,
   ([show, state, closable]) => {
     if (show && state !== 'minimized' && closable) {
@@ -465,7 +437,7 @@ watch(
 
 watch(
   visible,
-  (show) => {
+  (show, wasShown) => {
     if (show) {
       resolvePanelTarget()
       resolveDockTarget()
@@ -474,8 +446,16 @@ watch(
       clearWindowTransition()
       renderedWindowState.value = windowState.value
       bringToFront()
-      focusPanelOnNextTick()
       emit('open')
+      if (wasShown === false && hasInitialized.value) {
+        animateVisibilityChange(true, () => {
+          focusPanelOnNextTick()
+          emit('opened')
+        })
+        return
+      }
+
+      focusPanelOnNextTick()
       nextTick(() => {
         if (visible.value) {
           emit('opened')
@@ -485,15 +465,32 @@ watch(
     }
 
     stopPointerTracking()
-    unregisterOpenWindow()
-    resetWindowState()
     emit('close')
+    if (windowState.value === 'minimized') {
+      clearWindowTransition()
+      windowState.value = 'normal'
+      renderedWindowState.value = 'normal'
+      restoreState.value = 'normal'
+      unregisterOpenWindow()
+      emit('closed')
+      return
+    }
+
+    if (wasShown) {
+      animateVisibilityChange(false, () => {
+        unregisterOpenWindow()
+        emit('closed')
+      })
+      return
+    }
+
+    unregisterOpenWindow()
     emit('closed')
   },
 )
 
 watch(
-  () => [props.width, props.height, props.minWidth, props.minHeight] as const,
+  () => [props.width, props.height, props.minWidth, props.minHeight, props.maxWidth, props.maxHeight] as const,
   () => {
     if (!hasInitialized.value) {
       applyRect(createInitialRect())
@@ -501,11 +498,7 @@ watch(
     }
 
     if (windowState.value === 'normal') {
-      applyRect({
-        ...windowRect,
-        width: resolveSize(props.width, window.innerWidth, windowRect.width),
-        height: resolveSize(props.height, window.innerHeight, windowRect.height),
-      })
+      applyRect(windowRect)
     }
   },
 )
@@ -513,7 +506,9 @@ watch(
 onMounted(() => {
   resolvePanelTarget()
   resolveDockTarget()
+  resolveMaximizeTarget()
   window.addEventListener(WINDOW_ACTIVE_EVENT, handleActiveWindowChange)
+  document.addEventListener('pointerdown', handleDocumentPointerDown, true)
   if (visible.value) {
     initializeWindow()
     registerOpenWindow()
@@ -538,10 +533,10 @@ onBeforeUnmount(() => {
   clearWindowTransition()
   window.removeEventListener(WINDOW_ACTIVE_EVENT, handleActiveWindowChange)
   window.removeEventListener('resize', handleViewportResize)
+  document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
 })
 
 function bringToFront() {
-  dockHoverZIndex.value = null
   zIndex.value = nextWindowZIndex()
   syncActiveWindowRuntime()
 }
@@ -578,14 +573,6 @@ function getPanelZIndex(panel: HTMLElement) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function handleDockMouseEnter() {
-  dockHoverZIndex.value = nextWindowZIndex() + 1
-}
-
-function handleDockMouseLeave() {
-  dockHoverZIndex.value = null
-}
-
 function handleActiveWindowChange(event: Event) {
   const activeWindowId = (event as CustomEvent<WindowActiveEventDetail>).detail?.activeWindowId ?? null
   isActiveWindow.value = activeWindowId === instanceId
@@ -600,20 +587,11 @@ function initializeWindow() {
   hasInitialized.value = true
 }
 
-function resetWindowState() {
-  clearWindowTransition()
-  windowState.value = 'normal'
-  renderedWindowState.value = 'normal'
-  restoreState.value = 'normal'
-  hasInitialized.value = false
-  applyRect(createInitialRect(), { persist: false })
-}
-
 function createInitialRect(): WindowRect {
   const viewport = getViewport()
   const limits = getSizeLimits(viewport)
-  const width = clampValue(resolveSize(props.width, viewport.width, 560), limits.minWidth, limits.maxWidth)
-  const height = clampValue(resolveSize(props.height, viewport.height, 420), limits.minHeight, limits.maxHeight)
+  const width = clampValue(props.width ?? WINDOW_DEFAULT_WIDTH, limits.minWidth, limits.maxWidth)
+  const height = clampValue(props.height ?? WINDOW_DEFAULT_HEIGHT, limits.minHeight, limits.maxHeight)
   const centeredRect = clampRect({
     width,
     height,
@@ -682,11 +660,11 @@ function startDrag(event: MouseEvent) {
 function startDragFromMaximized(event: MouseEvent) {
   const startX = event.clientX
   const startY = event.clientY
-  const viewport = getViewport()
-  const restoreWidth = clampValue(windowRect.width, props.minWidth, viewport.width)
-  const restoreHeight = clampValue(windowRect.height, props.minHeight, viewport.height)
-  const pointerOffsetX = getMaximizedRestorePointerOffsetX(startX, viewport.width, restoreWidth)
-  const pointerOffsetY = clampValue(startY, 12, HEADER_VISIBLE_HEIGHT - 8)
+  const maximizedRect = getMaximizedRect()
+  const restoreWidth = clampValue(windowRect.width, props.minWidth, maximizedRect.width)
+  const restoreHeight = clampValue(windowRect.height, props.minHeight, maximizedRect.height)
+  const pointerOffsetX = getMaximizedRestorePointerOffsetX(startX - maximizedRect.left, maximizedRect.width, restoreWidth)
+  const pointerOffsetY = clampValue(startY - maximizedRect.top, 12, HEADER_VISIBLE_HEIGHT - 8)
   let hasRestored = false
   let dragOffsetX = 0
   let dragOffsetY = 0
@@ -736,7 +714,7 @@ function handleHeaderDblClick() {
 }
 
 function handleMinimize() {
-  if (!props.minimizable || isWindowAnimating.value || minimizeTransitionPending) {
+  if (!props.minimizable || windowState.value === 'minimized' || isWindowAnimating.value || minimizeTransitionPending) {
     return
   }
 
@@ -745,6 +723,16 @@ function handleMinimize() {
   const fromRect = getStateRect(windowState.value)
   const fromState = windowState.value
   const fromBorderRadius = fromState === 'maximized' ? 0 : 14
+
+  if (!props.animated) {
+    emit('minimize-start')
+    windowState.value = 'minimized'
+    renderedWindowState.value = 'minimized'
+    syncActiveWindowRuntime()
+    emit('minimize')
+    focusTopVisibleWindowOnNextTick()
+    return
+  }
 
   minimizeTransitionPending = true
   emit('minimize-start')
@@ -760,7 +748,7 @@ function handleMinimize() {
       fromState,
       toState: 'minimized',
       fromRect,
-      toRect: getMinimizeAnimationRect(getDockRect()),
+      toRect: getMinimizeAnimationRect(fromRect, getDockRect()),
       fromOpacity: 1,
       toOpacity: 0,
       fromBorderRadius,
@@ -898,11 +886,50 @@ function startResize(direction: ResizeDirection, event: MouseEvent) {
 }
 
 function handleOverlayClick() {
-  if (!props.closeOnClickModal) {
+  handleOutsideClick()
+}
+
+function handleDocumentPointerDown(event: PointerEvent) {
+  if (!visible.value || props.modal || windowState.value === 'minimized' || !isActiveWindow.value) {
     return
   }
 
-  visible.value = false
+  const targetElement = getEventTargetElement(event)
+  if (targetElement?.closest('.window-dialog, [data-vue3-windows-dock], [data-vue3-windows-win10-dock], .window-dialog__resize-handle')) {
+    return
+  }
+
+  handleOutsideClick()
+}
+
+function handleOutsideClick() {
+  const behavior = getOutsideClickBehavior()
+  if (behavior === 'none') {
+    return
+  }
+
+  emit('outside-click', behavior)
+}
+
+function getOutsideClickBehavior(): WindowOutsideClickBehavior {
+  if (props.outsideClickBehavior !== 'none') {
+    return props.outsideClickBehavior
+  }
+
+  return props.closeOnClickModal ? 'remove' : 'none'
+}
+
+function getEventTargetElement(event: Event) {
+  const target = event.target
+  if (target instanceof Element) {
+    return target
+  }
+
+  if (target instanceof Node) {
+    return target.parentElement
+  }
+
+  return null
 }
 
 function beginPointerTracking(cursor: string, onMove: (event: MouseEvent) => void) {
@@ -988,13 +1015,34 @@ function resolveDockTarget() {
     return
   }
 
-  const scopedDock = originAnchorRef.value?.parentElement?.querySelector?.('[data-window-dialog-dock]')
-  dockTarget.value = scopedDock instanceof HTMLElement ? scopedDock : 'body'
+  dockTarget.value = 'body'
+}
+
+function resolveMaximizeTarget() {
+  if (typeof window === 'undefined') {
+    maximizeTarget.value = null
+    return
+  }
+
+  if (props.maximizeTo instanceof HTMLElement) {
+    maximizeTarget.value = props.maximizeTo
+    return
+  }
+
+  if (typeof props.maximizeTo === 'string' && props.maximizeTo.trim()) {
+    const target = document.querySelector(props.maximizeTo)
+    maximizeTarget.value = target instanceof HTMLElement ? target : null
+    return
+  }
+
+  maximizeTarget.value = null
 }
 
 function handleViewportResize() {
+  viewportVersion.value += 1
   resolvePanelTarget()
   resolveDockTarget()
+  resolveMaximizeTarget()
 
   if (isWindowAnimating.value) {
     return
@@ -1003,6 +1051,27 @@ function handleViewportResize() {
   if (visible.value && windowState.value === 'normal') {
     applyRect(windowRect)
   }
+}
+
+function animateVisibilityChange(show: boolean, onComplete: () => void) {
+  const rect = windowState.value === 'maximized' ? getMaximizedRect() : { ...windowRect }
+  animateWindowTransition({
+    fromState: windowState.value,
+    toState: windowState.value,
+    fromRect: rect,
+    toRect: rect,
+    animationMode: 'geometry',
+    fromOpacity: show ? 0 : 1,
+    toOpacity: show ? 1 : 0,
+    fromBorderRadius: getWindowBorderRadius(windowState.value),
+    toBorderRadius: getWindowBorderRadius(windowState.value),
+    renderState: windowState.value,
+    durationMs: WINDOW_VISIBILITY_TRANSITION_MS,
+    fadeDurationMs: WINDOW_VISIBILITY_TRANSITION_MS,
+    motionEasing: WINDOW_STANDARD_EASING,
+    fadeEasing: show ? WINDOW_FADE_IN_EASING : WINDOW_FADE_OUT_EASING,
+    onComplete,
+  })
 }
 
 function animateWindowTransition(options: {
@@ -1024,6 +1093,16 @@ function animateWindowTransition(options: {
   onComplete: () => void
 }) {
   clearWindowTransition()
+  if (!props.animated) {
+    const layoutRect = options.layoutRect ?? options.toRect
+    applyRect(layoutRect, { persist: options.toState !== 'minimized' })
+    renderedWindowState.value = options.renderState ?? options.toState
+    animatedOpacity.value = options.toOpacity ?? 1
+    animatedBorderRadius.value = options.toBorderRadius ?? getWindowBorderRadius(options.toState)
+    options.onComplete()
+    return
+  }
+
   const transitionVersion = ++windowTransitionVersion
   const layoutRect = options.layoutRect ?? options.fromRect
   const motionDuration = options.durationMs ?? WINDOW_STANDARD_TRANSITION_MS
@@ -1127,6 +1206,16 @@ function getStateRect(state: WindowState): WindowRect {
 }
 
 function getMaximizedRect(): WindowRect {
+  const targetRect = maximizeTarget.value?.getBoundingClientRect()
+  if (targetRect && targetRect.width > 0 && targetRect.height > 0) {
+    return {
+      left: Math.round(targetRect.left),
+      top: Math.round(targetRect.top),
+      width: Math.round(targetRect.width),
+      height: Math.round(targetRect.height),
+    }
+  }
+
   const viewport = getViewport()
   return {
     left: 0,
@@ -1137,29 +1226,48 @@ function getMaximizedRect(): WindowRect {
 }
 
 function getDockRect(): WindowRect {
-  const measuredRect = dockRef.value?.getBoundingClientRect() ?? dockMeasureRef.value?.getBoundingClientRect()
-  if (measuredRect && measuredRect.width > 0 && measuredRect.height > 0) {
-    return {
-      left: Math.round(measuredRect.left),
-      top: Math.round(measuredRect.top),
-      width: Math.round(measuredRect.width),
-      height: Math.round(measuredRect.height),
-    }
-  }
-
   const viewport = getViewport()
   const dockHost = resolveDockHostElement()
+  const dockTaskRect = getDockTaskRect(dockHost)
+  if (dockTaskRect) {
+    return dockTaskRect
+  }
+
   const hostRect = dockHost?.getBoundingClientRect()
   const width = Math.round(Math.min(WINDOW_DOCK_WIDTH, Math.max(140, viewport.width - 32)))
   const height = 52
-  const fallbackLeft = hostRect ? hostRect.left + 16 + props.dockIndex * props.dockStep : 16 + props.dockIndex * props.dockStep
-  const fallbackTop = hostRect ? hostRect.bottom - height : viewport.height - height
+  const scrollLeft = dockHost instanceof HTMLElement ? dockHost.scrollLeft : 0
+  const fallbackLeft = hostRect
+    ? hostRect.left + props.dockIndex * props.dockStep - scrollLeft
+    : 16 + props.dockIndex * props.dockStep
+  const fallbackTop = hostRect ? hostRect.top + Math.max(0, (hostRect.height - height) / 2) : viewport.height - height
 
   return {
     left: Math.round(fallbackLeft),
     top: Math.round(fallbackTop),
     width,
     height,
+  }
+}
+
+function getDockTaskRect(dockHost: HTMLElement | null): WindowRect | null {
+  if (!dockHost || props.windowId === undefined) {
+    return null
+  }
+
+  const targetId = String(props.windowId)
+  const dockTask = Array.from(dockHost.querySelectorAll<HTMLElement>('[data-vue3-windows-dock-task]'))
+    .find((element) => element.dataset.vue3WindowsWindowId === targetId)
+  const taskRect = dockTask?.getBoundingClientRect()
+  if (!taskRect || taskRect.width <= 0 || taskRect.height <= 0) {
+    return null
+  }
+
+  return {
+    left: Math.round(taskRect.left),
+    top: Math.round(taskRect.top),
+    width: Math.round(taskRect.width),
+    height: Math.round(taskRect.height),
   }
 }
 
@@ -1194,8 +1302,13 @@ function getMaximizedRestorePointerOffsetX(startX: number, viewportWidth: number
   return clampValue(rawOffset, RESTORE_POINTER_GUTTER, restoreWidth - RESTORE_POINTER_GUTTER)
 }
 
-function getMinimizeAnimationRect(dockRect: WindowRect): WindowRect {
-  return { ...dockRect }
+function getMinimizeAnimationRect(fromRect: WindowRect, dockRect: WindowRect): WindowRect {
+  return {
+    left: Math.round(fromRect.left + (dockRect.left - fromRect.left) * WINDOW_MINIMIZE_TARGET_SCALE),
+    top: Math.round(fromRect.top + (dockRect.top - fromRect.top) * WINDOW_MINIMIZE_TARGET_SCALE),
+    width: Math.round(fromRect.width + (dockRect.width - fromRect.width) * WINDOW_MINIMIZE_TARGET_SCALE),
+    height: Math.round(fromRect.height + (dockRect.height - fromRect.height) * WINDOW_MINIMIZE_TARGET_SCALE),
+  }
 }
 
 function shouldResetCascadeToCenter(
@@ -1427,29 +1540,19 @@ function getViewport() {
 }
 
 function getSizeLimits(viewport: { width: number; height: number }) {
-  const maxWidth = Math.max(280, viewport.width - VIEWPORT_MARGIN * 2)
-  const maxHeight = Math.max(200, viewport.height - VIEWPORT_MARGIN * 2)
+  const viewportMaxWidth = Math.max(280, viewport.width - VIEWPORT_MARGIN * 2)
+  const viewportMaxHeight = Math.max(200, viewport.height - VIEWPORT_MARGIN * 2)
+  const maxWidth = Math.min(props.maxWidth, viewportMaxWidth)
+  const maxHeight = Math.min(props.maxHeight, viewportMaxHeight)
+  const minWidth = clampValue(props.minWidth, 0, maxWidth)
+  const minHeight = clampValue(props.minHeight, 0, maxHeight)
 
   return {
-    minWidth: Math.min(props.minWidth, maxWidth),
-    minHeight: Math.min(props.minHeight, maxHeight),
+    minWidth,
+    minHeight,
     maxWidth,
     maxHeight,
   }
-}
-
-function resolveSize(value: string | number, viewportSize: number, fallback: number) {
-  if (typeof value === 'number') {
-    return value
-  }
-
-  if (value.endsWith('%')) {
-    const ratio = Number.parseFloat(value) / 100
-    return Number.isFinite(ratio) ? viewportSize * ratio : fallback
-  }
-
-  const parsed = Number.parseFloat(value)
-  return Number.isFinite(parsed) ? parsed : fallback
 }
 
 function clampValue(value: number, min: number, max: number) {
@@ -1572,6 +1675,7 @@ defineExpose({
   windowState,
   minimize: handleMinimize,
   maximize: toggleMaximize,
+  moveTop: bringToFront,
   restore: restoreWindow,
 })
 </script>
@@ -1613,7 +1717,28 @@ defineExpose({
   border: 1px solid rgba(148, 163, 184, 0.28);
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  --window-dialog-surface: var(--window-dialog-bg-color, var(--bgColor, Canvas));
+  --window-dialog-text-color: CanvasText;
+  --window-dialog-muted-color: color-mix(in srgb, var(--window-dialog-text-color) 62%, transparent);
+  --window-dialog-header-bg-start: color-mix(
+    in srgb,
+    var(--window-dialog-surface) 96%,
+    var(--window-dialog-text-color) 4%
+  );
+  --window-dialog-header-bg-end: color-mix(
+    in srgb,
+    var(--window-dialog-surface) 90%,
+    var(--window-dialog-text-color) 10%
+  );
+  --window-dialog-subtle-bg: color-mix(
+    in srgb,
+    var(--window-dialog-surface) 92%,
+    var(--window-dialog-text-color) 8%
+  );
+  --window-dialog-hover-bg: color-mix(in srgb, var(--window-dialog-text-color) 10%, transparent);
+  --window-dialog-hover-color: color-mix(in srgb, var(--window-dialog-text-color) 84%, transparent);
+  background: var(--window-dialog-surface);
+  color: var(--window-dialog-text-color);
   pointer-events: auto;
   transition:
     left var(--window-dialog-motion-ms, 140ms) var(--window-dialog-motion-ease, cubic-bezier(0.2, 0, 0, 1)),
@@ -1650,9 +1775,13 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 52px;
-  padding: 0 8px 0 16px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  min-height: 40px;
+  padding: 0 0 0 16px;
+  background: linear-gradient(
+    180deg,
+    var(--window-dialog-header-bg-start) 0%,
+    var(--window-dialog-header-bg-end) 100%
+  );
   cursor: default;
 }
 
@@ -1690,16 +1819,16 @@ defineExpose({
   font-size: 15px;
   font-weight: 600;
   line-height: 1.4;
-  color: #0f172a;
+  color: var(--window-dialog-text-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-:global(.window-dialog__controls),
-:global(.window-dialog-dock__controls) {
+:global(.window-dialog__controls) {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  align-self: stretch;
   flex-shrink: 0;
 }
 
@@ -1711,13 +1840,13 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 46px;
+  height: 100%;
   padding: 0;
   border: none;
-  border-radius: 10px;
+  border-radius: 0;
   background: transparent;
-  color: #64748b;
+  color: var(--window-dialog-muted-color);
   cursor: default;
   transition:
     background-color 0.18s ease,
@@ -1736,12 +1865,12 @@ defineExpose({
 }
 
 :global(.window-dialog__control:hover) {
-  background: rgba(148, 163, 184, 0.16);
-  color: #334155;
+  background: var(--window-dialog-hover-bg);
+  color: var(--window-dialog-hover-color);
 }
 
 :global(.window-dialog__control:active) {
-  transform: scale(0.94);
+  transform: none;
 }
 
 :global(.window-dialog__control--close:hover) {
@@ -1753,7 +1882,8 @@ defineExpose({
   height: 100%;
   padding: 20px 24px;
   overflow: auto;
-  background: #ffffff;
+  background: var(--window-dialog-surface);
+  color: var(--window-dialog-text-color);
 }
 
 :global(.window-dialog__footer) {
@@ -1762,7 +1892,7 @@ defineExpose({
   justify-content: flex-end;
   gap: 12px;
   padding: 14px 20px;
-  background: #f8fafc;
+  background: var(--window-dialog-subtle-bg);
 }
 
 :global(.window-dialog__resize-handle) {
@@ -1789,54 +1919,6 @@ defineExpose({
 :global(.window-dialog__resize-handle--nw),
 :global(.window-dialog__resize-handle--se) {
   cursor: nwse-resize;
-}
-
-:global(.window-dialog-dock) {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  max-width: min(320px, 100%);
-  padding: 6px;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.14);
-  backdrop-filter: blur(18px);
-  pointer-events: auto;
-  transition:
-    left var(--window-dialog-motion-ms, 140ms) cubic-bezier(0.2, 0, 0, 1),
-    transform var(--window-dialog-motion-ms, 140ms) cubic-bezier(0.2, 0, 0, 1),
-    opacity var(--window-dialog-fade-ms, 72ms) cubic-bezier(0.55, 0, 0.85, 0.25);
-}
-
-:global(.window-dialog-dock--measure) {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: none;
-}
-
-:global(.window-dialog-dock__entry) {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  flex: 1;
-  padding: 10px 6px;
-  border: none;
-  background: transparent;
-  color: inherit;
-  cursor: default;
-}
-
-:global(.window-dialog-dock__title) {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f172a;
 }
 
 .window-dialog__origin-anchor {

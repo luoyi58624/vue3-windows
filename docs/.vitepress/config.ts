@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitepress'
 import { fileURLToPath, URL } from 'node:url'
 
+const isDev = process.env.NODE_ENV !== 'production'
+
 export default defineConfig({
   title: 'vue3-windows',
   description: 'Vue 3 draggable window components',
@@ -11,6 +13,7 @@ export default defineConfig({
       { text: '指南', link: '/guide/' },
       { text: 'Demo', link: '/demo/' },
       { text: '更新历史', link: '/changelog/' },
+      ...(isDev ? [{ text: 'Win10 Demo', link: '/demo/win10' }, { text: '测试页', link: '/dev/' }] : []),
     ],
     sidebar: [
       {
@@ -20,6 +23,7 @@ export default defineConfig({
           { text: 'API', link: '/api/' },
           { text: 'Demo', link: '/demo/' },
           { text: '更新历史', link: '/changelog/' },
+          ...(isDev ? [ { text: 'Win10 Demo', link: '/demo/win10' }, { text: '测试页', link: '/dev/' }] : []),
         ],
       },
     ],

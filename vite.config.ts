@@ -16,6 +16,11 @@ export default defineConfig(({ command }) => ({
         })
       : undefined,
   ],
+  test: {
+    environment: 'jsdom',
+    include: ['test/**/*.spec.ts'],
+    clearMocks: true,
+  },
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),

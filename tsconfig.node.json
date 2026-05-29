@@ -8,7 +8,7 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
-    "types": ["node"],
+    "types": ["node", "bun"],
     "noEmit": true,
     "strict": true,
     "noUnusedLocals": true,
@@ -16,5 +16,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "scripts/**/*.ts"]
 }

@@ -1,14 +1,21 @@
-import type { App } from 'vue'
-
-import Window from './Window.vue'
-import WindowManager from './WindowManager.vue'
-
-export { Window, WindowManager }
-export type { AccentType, WindowManagerItem, WindowState } from './types'
-
-export default {
-  install(app: App) {
-    app.component('Window', Window)
-    app.component('WindowManager', WindowManager)
-  },
-}
+export { default as Win10Dock } from './components/Win10Dock.vue'
+export { default as WindowProvider } from './components/WindowProvider.vue'
+export { default as WindowsDesktop } from './components/WindowsDesktop.vue'
+export { default as WindowsDock } from './components/WindowsDock.vue'
+export { useCurrentWindow } from './hooks/currentWindow'
+export type {
+  AccentType,
+  CreateWindowOptions,
+  UseWindowsOptions,
+  WindowAnchorTarget,
+  WindowId,
+  WindowOutsideClickBehavior,
+  Win10DockTaskSlotProps,
+  WindowsItem,
+  WindowsSetupOptions,
+  WindowsDesktopExpose,
+  WindowsDesktopRef,
+  WindowsRef,
+  WindowState,
+} from './types'
+export { useWindows } from './hooks/useWindows'

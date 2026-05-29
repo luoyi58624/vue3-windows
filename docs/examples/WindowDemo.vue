@@ -1,263 +1,418 @@
 <template>
-  <div class="demo-page">
-    <header class="demo-page__header">
+  <WindowsDesktop ref="desktopRef" class="dev-playground">
+    <header class="dev-playground__hero">
       <div>
-        <p class="demo-page__eyebrow">vue3-windows</p>
-        <h1 class="demo-page__title">Vue 3 多窗口组件</h1>
-        <p class="demo-page__desc">
-          支持拖拽、缩放、最大化、最小化到局部 dock，并由 WindowManager 管理窗口队列。
+        <p class="dev-playground__eyebrow">Development only</p>
+        <h1 class="dev-playground__title">文档测试页</h1>
+        <p class="dev-playground__desc">
+          这里用于手动验证窗口创建、状态切换、外部点击行为和 dock 交互，不进入生产文档导航。
         </p>
       </div>
 
-      <div class="demo-page__actions">
-        <button class="demo-page__action" @click="openWindow('note')">打开便签</button>
-        <button class="demo-page__action" @click="openWindow('stats')">打开指标</button>
-        <button class="demo-page__action" @click="openWindow('preview')">打开预览</button>
+      <div class="dev-playground__hero-actions">
+        <button type="button" @click="createWindow('compact')">新建紧凑窗口</button>
+        <button type="button" @click="createWindow('default')">新建默认窗口</button>
+        <button type="button" @click="createWindow('wide')">新建宽窗口</button>
       </div>
     </header>
 
-    <section class="demo-page__stage">
-      <WindowManager v-model:items="windows">
-        <template #window="{ item, minimizedCount, totalCount }">
-          <template v-if="item.kind === 'note'">
-            <div class="window-content">
-              <label class="demo-field">
-                <span>便签内容</span>
-                <textarea v-model="item.note" rows="8" />
-              </label>
-            </div>
-          </template>
+    <div class="dev-playground__layout">
+      <section class="dev-panel dev-panel--controls">
+        <h2>创建参数</h2>
 
-          <template v-else-if="item.kind === 'stats'">
-            <div class="window-grid">
-              <div class="window-card">
-                <strong>活动窗口</strong>
-                <span>{{ totalCount }}</span>
-              </div>
-              <div class="window-card">
-                <strong>最小化</strong>
-                <span>{{ minimizedCount }}</span>
-              </div>
-              <div class="window-card">
-                <strong>当前 ID</strong>
-                <span>#{{ item.id }}</span>
-              </div>
-            </div>
-          </template>
+        <label class="dev-field">
+          <span>标题前缀</span>
+          <input v-model="titlePrefix" type="text" />
+        </label>
 
-          <template v-else>
-            <div class="window-preview">
-              <div class="window-preview__panel">
-                <span />
-                <span />
-                <span />
-              </div>
-              <p>这是一个干净利落的窗口预览块。</p>
+        <label class="dev-field">
+          <span>初始备注</span>
+          <textarea v-model="seedNote" rows="4" />
+        </label>
+
+        <div class="dev-grid">
+          <label class="dev-field">
+            <span>外部点击</span>
+            <select v-model="outsideClickBehavior">
+              <option value="none">none</option>
+              <option value="hide">hide</option>
+              <option value="minimize">minimize</option>
+              <option value="remove">remove</option>
+            </select>
+          </label>
+
+          <label class="dev-field">
+            <span>强调色</span>
+            <select v-model="accentType">
+              <option value="primary">primary</option>
+              <option value="success">success</option>
+              <option value="warning">warning</option>
+              <option value="danger">danger</option>
+              <option value="info">info</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="dev-actions">
+          <button type="button" @click="desktopRef?.hideAll()">全部隐藏</button>
+          <button type="button" @click="desktopRef?.showAll()">全部显示</button>
+          <button type="button" class="is-danger" @click="desktopRef?.closeAll()">全部关闭</button>
+        </div>
+      </section>
+
+      <section class="dev-panel dev-panel--stage">
+        <div class="dev-stage">
+          <div class="dev-stage__empty">
+            <strong>窗口始终相对全局视口显示</strong>
+            <span>当前区域只负责 dock 停靠和测试操作入口。</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="dev-panel dev-panel--windows">
+        <h2>当前窗口</h2>
+
+        <ul v-if="windowSummaries.length" class="dev-window-list">
+          <li v-for="item in windowSummaries" :key="item.id">
+            <div class="dev-window-list__meta">
+              <strong>{{ item.title }}</strong>
+              <span>{{ item.state }} · {{ item.visible ? 'visible' : 'hidden' }}</span>
             </div>
-          </template>
-        </template>
-      </WindowManager>
-    </section>
-  </div>
+
+            <div class="dev-window-list__actions">
+              <button type="button" @click="desktopRef?.moveTop(item.id)">置顶</button>
+              <button type="button" @click="desktopRef?.setState(item.id, 'minimized')">最小化</button>
+              <button type="button" @click="desktopRef?.setState(item.id, 'maximized')">最大化</button>
+              <button type="button" @click="desktopRef?.setState(item.id, 'normal')">还原</button>
+              <button type="button" @click="toggleVisibility(item.id, item.visible)">
+                {{ item.visible ? '隐藏' : '显示' }}
+              </button>
+              <button type="button" class="is-danger" @click="desktopRef?.close(item.id)">关闭</button>
+            </div>
+          </li>
+        </ul>
+
+        <p v-else class="dev-empty">还没有窗口，先创建一个看看。</p>
+      </section>
+    </div>
+  </WindowsDesktop>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { WindowManager, type WindowManagerItem } from 'vue3-windows'
+import { computed, ref } from 'vue'
+import type { AccentType, WindowId, WindowOutsideClickBehavior, WindowsDesktopRef } from 'vue3-windows'
+import { WindowsDesktop } from 'vue3-windows'
 
-type WindowKind = 'note' | 'stats' | 'preview'
+import PlaygroundWindowContent from './PlaygroundWindowContent.vue'
 
-interface DemoWindowItem extends WindowManagerItem {
-  id: number
-  kind: WindowKind
-  width: number
-  height: number
-  accentType: 'primary' | 'success' | 'info'
-  note: string
-}
+type WindowPreset = 'compact' | 'default' | 'wide'
 
-const windows = ref<DemoWindowItem[]>([])
+const desktopRef = ref<WindowsDesktopRef | null>(null)
+
+const titlePrefix = ref('测试窗口')
+const seedNote = ref('用于验证手动交互、状态切换和 dock 行为。')
+const outsideClickBehavior = ref<WindowOutsideClickBehavior>('minimize')
+const accentType = ref<AccentType>('primary')
+
 let nextWindowId = 1
 
-function openWindow(kind: WindowKind) {
-  const id = nextWindowId++
-  windows.value.push(createWindowTemplate(kind, id))
+const windowSummaries = computed(() =>
+  desktopRef.value?.items.map((item) => ({
+    id: item.id,
+    title: item.title,
+    state: item.state,
+    visible: item.visible,
+  })) ?? [],
+)
+
+function createWindow(preset: WindowPreset) {
+  const index = nextWindowId++
+  const dimensions = getDimensions(preset)
+
+  desktopRef.value?.create({
+    id: `dev-window-${index}`,
+    title: `${titlePrefix.value} ${index}`,
+    component: PlaygroundWindowContent,
+    width: dimensions.width,
+    height: dimensions.height,
+    outsideClickBehavior: outsideClickBehavior.value,
+    accentType: accentType.value,
+    note: seedNote.value,
+  })
 }
 
-function createWindowTemplate(kind: WindowKind, id: number): DemoWindowItem {
-  switch (kind) {
-    case 'note':
-      return {
-        id,
-        kind,
-        title: `便签 ${id}`,
-        accentType: 'primary',
-        width: 460,
-        height: 340,
-        visible: true,
-        state: 'normal',
-        note: '写点东西，最小化后会进入左下角堆叠。',
-      }
-    case 'stats':
-      return {
-        id,
-        kind,
-        title: `指标 ${id}`,
-        accentType: 'success',
-        width: 520,
-        height: 320,
-        visible: true,
-        state: 'normal',
-        note: '',
-      }
-    case 'preview':
-      return {
-        id,
-        kind,
-        title: `预览 ${id}`,
-        accentType: 'info',
-        width: 500,
-        height: 360,
-        visible: true,
-        state: 'normal',
-        note: '',
-      }
+function toggleVisibility(id: WindowId, visible: boolean) {
+  if (visible) {
+    desktopRef.value?.hide(id)
+    return
   }
+
+  desktopRef.value?.show(id)
+}
+
+function getDimensions(preset: WindowPreset) {
+  if (preset === 'compact') {
+    return { width: 560, height: 380 }
+  }
+
+  if (preset === 'wide') {
+    return { width: 920, height: 560 }
+  }
+
+  return { width: 760, height: 500 }
 }
 </script>
 
 <style scoped>
-.demo-page {
-  position: relative;
-  display: flex;
-  flex-direction: column;
+.dev-playground {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 16px;
-  height: calc(100vh - var(--vp-nav-height));
-  min-height: 560px;
-  padding: 16px;
+  height: calc(100vh - var(--vp-nav-height, 0px) - 48px);
+  min-height: calc(100vh - var(--vp-nav-height, 0px) - 48px);
   overflow: hidden;
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 32%),
-    radial-gradient(circle at top right, rgba(16, 185, 129, 0.12), transparent 26%),
-    linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+  padding: 16px;
+  background: #f8fafc;
 }
 
-.demo-page__header {
+.dev-playground__hero {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  flex-shrink: 0;
 }
 
-.demo-page__eyebrow {
-  margin: 0 0 8px;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
+.dev-playground__eyebrow {
+  margin: 0 0 6px;
+  color: #0f766e;
   font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
-.demo-page__title {
+.dev-playground__title {
   margin: 0;
+  color: #0f172a;
   font-size: 28px;
-  line-height: 1.1;
+  line-height: 1.15;
 }
 
-.demo-page__desc {
+.dev-playground__desc {
   margin: 8px 0 0;
+  max-width: 760px;
   color: #475569;
 }
 
-.demo-page__actions {
+.dev-playground__hero-actions {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
-.demo-page__action {
-  border: none;
-  border-radius: 999px;
-  padding: 10px 14px;
-  color: #ffffff;
-  background: linear-gradient(135deg, #2563eb 0%, #0f766e 100%);
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.2);
-}
-
-.demo-page__stage {
-  position: relative;
-  flex: 1;
+.dev-playground__layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr) 360px;
+  gap: 16px;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.38);
-  backdrop-filter: blur(8px);
+  flex: 1;
 }
 
-.window-content,
-.window-preview {
+.dev-panel {
   display: grid;
-  gap: 12px;
+  align-content: start;
+  gap: 16px;
+  min-height: 0;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  background: #fff;
 }
 
-.demo-field {
+.dev-panel h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.dev-panel--stage {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dev-panel--controls {
+  overflow: auto;
+}
+
+.dev-panel--windows {
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.dev-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 24px;
+  background:
+    linear-gradient(rgba(148, 163, 184, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.12) 1px, transparent 1px),
+    #fff;
+  background-size: 24px 24px;
+}
+
+.dev-stage__empty {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  text-align: center;
+  color: #475569;
+}
+
+.dev-stage__empty strong {
+  color: #0f172a;
+}
+
+.dev-field {
   display: grid;
   gap: 8px;
+}
+
+.dev-field span {
   color: #475569;
+  font-size: 13px;
   font-weight: 600;
 }
 
-.demo-field textarea {
+.dev-field input,
+.dev-field textarea,
+.dev-field select {
   width: 100%;
-  resize: none;
   border: 1px solid rgba(148, 163, 184, 0.45);
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: 8px;
+  padding: 10px 12px;
   color: #0f172a;
   outline: none;
+  background: #fff;
 }
 
-.demo-field textarea:focus {
+.dev-field textarea {
+  resize: vertical;
+}
+
+.dev-field input:focus,
+.dev-field textarea:focus,
+.dev-field select:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
-.window-grid {
+.dev-grid {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.window-card {
-  display: grid;
+.dev-actions,
+.dev-window-list__actions,
+.dev-playground__hero-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 16px;
-  border-radius: 16px;
+}
+
+button {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+button.is-danger:hover {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.dev-window-list {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.dev-panel--windows .dev-empty {
+  align-self: start;
+}
+
+.dev-window-list li {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
   background: #f8fafc;
 }
 
-.window-card span {
-  font-size: 24px;
-  font-weight: 700;
+.dev-window-list__meta {
+  display: grid;
+  gap: 4px;
 }
 
-.window-preview {
-  justify-items: start;
+.dev-window-list__meta strong {
+  color: #0f172a;
 }
 
-.window-preview__panel {
-  display: flex;
-  gap: 10px;
-  padding: 16px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(16, 185, 129, 0.12));
+.dev-window-list__meta span,
+.dev-empty {
+  color: #64748b;
 }
 
-.window-preview__panel span {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.82);
+@media (max-width: 1280px) {
+  .dev-playground__layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dev-panel--stage {
+    grid-column: 1 / -1;
+    min-height: 360px;
+  }
+}
+
+@media (max-width: 768px) {
+  .dev-playground {
+    height: auto;
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .dev-playground__hero {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dev-playground__layout,
+  .dev-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dev-playground__layout {
+    overflow: visible;
+  }
 }
 </style>

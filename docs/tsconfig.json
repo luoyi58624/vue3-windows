@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.app.json",
+  "compilerOptions": {
+    "baseUrl": "..",
+    "paths": {
+      "vue3-windows": ["src/index.ts"],
+      "vue3-windows/*": ["src/*"]
+    }
+  },
+  "include": [
+    "./**/*.md",
+    "./**/*.vue",
+    "./.vitepress/**/*.ts"
+  ]
+}
