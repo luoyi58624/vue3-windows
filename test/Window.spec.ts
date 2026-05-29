@@ -2,15 +2,19 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { useCurrentWindow, useWindows, WindowProvider, WindowsDesktop } from '../src'
+import { globalWindow, useCurrentWindow, useWindows, WindowProvider, WindowsDesktop } from '../src'
+import WindowDialog from '../src/lib/components/Window.vue'
 
 const RUNTIME_KEY = '__window_dialog_runtime__'
 const RECT_KEY = '__window_dialog_last_rect__'
 
 function resetWindowRuntime() {
+  globalWindow.closeAll()
   delete (globalThis as Record<string, unknown>)[RUNTIME_KEY]
   window.localStorage.removeItem(RECT_KEY)
   document.body.innerHTML = ''
+  document.documentElement.style.overflow = ''
+  document.body.style.overflow = ''
 }
 
 function wait(ms: number) {
@@ -216,15 +220,48 @@ const StandaloneHost = defineComponent({
   `,
 })
 
+const AutoHeightContent = defineComponent({
+  name: 'AutoHeightContent',
+  setup: () => () => h('div', { class: 'auto-height-content' }, 'auto height content'),
+})
+
+const TallAutoHeightContent = defineComponent({
+  name: 'TallAutoHeightContent',
+  setup: () => () => h('div', { class: 'tall-auto-height-content' }, 'tall auto height content'),
+})
+
+const VisibilityToggleHost = defineComponent({
+  name: 'VisibilityToggleHost',
+  components: {
+    WindowDialog,
+  },
+  setup() {
+    const visible = ref(false)
+
+    function openWindow() {
+      visible.value = true
+    }
+
+    return {
+      visible,
+      openWindow,
+    }
+  },
+  template: `
+    <button class="open-window" type="button" @click="openWindow">open</button>
+    <WindowDialog v-model="visible" title="Visibility Toggle" />
+  `,
+})
+
 const ForcedStandaloneHost = defineComponent({
   name: 'ForcedStandaloneHost',
   setup() {
     const desktopWindows = ref<ReturnType<typeof useWindows> | null>(null)
-    const standaloneWindows = ref<ReturnType<typeof useWindows> | null>(null)
+    const standaloneWindows = ref<typeof globalWindow | null>(null)
 
     function bindWindows() {
       desktopWindows.value = useWindows()
-      standaloneWindows.value = useWindows({ simple: true })
+      standaloneWindows.value = globalWindow
     }
 
     function openWindows() {
@@ -381,6 +418,173 @@ describe('useWindows', () => {
       expect(panel).toBeDefined()
       expect(panel?.style.width).toBe('720px')
       expect(panel?.style.height).toBe('360px')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('lets the browser size window height when height is not specified', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'auto-height',
+        title: 'Auto Height',
+        component: AutoHeightContent,
+      })
+
+      await nextTick()
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Auto Height')
+      expect(panel).toBeDefined()
+      expect(panel?.style.height).toBe('')
+      expect(panel?.style.minHeight).toBe('300px')
+      expect(panel?.style.maxHeight).toBe(`${window.innerHeight - 32}px`)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('caps auto height with maxHeight without setting a fixed height', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'capped-auto-height',
+        title: 'Capped Auto Height',
+        maxHeight: 300,
+        component: TallAutoHeightContent,
+      })
+
+      await nextTick()
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Capped Auto Height')
+      expect(panel).toBeDefined()
+      expect(panel?.style.height).toBe('')
+      expect(panel?.style.maxHeight).toBe('300px')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('keeps resize handles outside auto-height window edges', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'auto-height-resize-handles',
+        title: 'Auto Height Resize Handles',
+        component: AutoHeightContent,
+      })
+
+      await nextTick()
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Auto Height Resize Handles')
+      const surface = panel?.querySelector('.window-dialog__surface') as HTMLElement | null
+      const southHandle = panel?.querySelector('.window-dialog__resize-handle--s') as HTMLElement | null
+      const eastHandle = panel?.querySelector('.window-dialog__resize-handle--e') as HTMLElement | null
+
+      expect(panel).toBeDefined()
+      expect(surface).toBeDefined()
+      expect(southHandle).toBeDefined()
+      expect(eastHandle).toBeDefined()
+      expect(southHandle?.closest('.window-dialog')).toBe(panel)
+      expect(eastHandle?.closest('.window-dialog')).toBe(panel)
+      expect(surface?.contains(southHandle)).toBe(false)
+      expect(surface?.contains(eastHandle)).toBe(false)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('uses the rendered auto-height size when resize starts', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'auto-height-resize-start',
+        title: 'Auto Height Resize Start',
+        component: AutoHeightContent,
+      })
+
+      await nextTick()
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Auto Height Resize Start')
+      const southHandle = panel?.querySelector('.window-dialog__resize-handle--s') as HTMLElement | null
+
+      expect(panel).toBeDefined()
+      expect(southHandle).toBeDefined()
+      expect(panel?.style.height).toBe('')
+
+      panel!.getBoundingClientRect = () => ({
+        left: 120,
+        top: 90,
+        width: 560,
+        height: 520,
+        right: 680,
+        bottom: 610,
+        x: 120,
+        y: 90,
+        toJSON: () => ({}),
+      } as DOMRect)
+
+      southHandle!.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 240,
+        clientY: 610,
+      }))
+      await nextTick()
+
+      expect(panel?.style.height).toBe('520px')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('does not run the visibility animation on first open', async () => {
+    const wrapper = mount(VisibilityToggleHost, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await wrapper.get('.open-window').trigger('click')
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Visibility Toggle')
+      expect(panel).toBeDefined()
+      expect(panel?.classList.contains('window-dialog--animating')).toBe(false)
+      expect(panel?.style.transform).toBe('')
     } finally {
       wrapper.unmount()
     }
@@ -663,6 +867,9 @@ describe('useWindows', () => {
   })
 
   it('maximizes to the configured maximize target', async () => {
+    document.documentElement.style.overflow = 'auto'
+    document.body.style.overflow = 'scroll'
+
     const wrapper = mount(MaximizeAnchorHost, {
       attachTo: document.body,
     })
@@ -698,6 +905,42 @@ describe('useWindows', () => {
       expect(panel?.style.top).toBe('50px')
       expect(panel?.style.width).toBe('640px')
       expect(panel?.style.height).toBe('360px')
+      expect(document.documentElement.style.overflow).toBe('auto')
+      expect(document.body.style.overflow).toBe('scroll')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('locks document scrolling while a window is maximized to the viewport', async () => {
+    document.documentElement.style.overflow = 'auto'
+    document.body.style.overflow = 'scroll'
+
+    const wrapper = mount(NoAnimationHost, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      await wrapper.get('.open-window').trigger('click')
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.setState('no-animation', 'maximized')
+      await nextTick()
+      await nextTick()
+
+      expect(document.documentElement.style.overflow).toBe('hidden')
+      expect(document.body.style.overflow).toBe('hidden')
+
+      wrapper.vm.windows?.setState('no-animation', 'normal')
+      await nextTick()
+      await nextTick()
+
+      expect(document.documentElement.style.overflow).toBe('auto')
+      expect(document.body.style.overflow).toBe('scroll')
     } finally {
       wrapper.unmount()
     }

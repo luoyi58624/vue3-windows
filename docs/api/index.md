@@ -1,108 +1,22 @@
 # API
 
-## 最简单用法
-
-最简单的方式是直接创建独立窗口管理器，不需要先放置 `WindowsDesktop`。
-
-<ClientOnly>
-  <SimpleWindowDemo />
-</ClientOnly>
-
-```vue
-<script setup lang="ts">
-import { useWindows } from 'vue3-windows'
-
-const windows = useWindows()
-
-function openWindow() {
-  windows.create({
-    id: 1,
-    title: 'Demo',
-  })
-}
-</script>
-
-<template>
-  <button type="button" @click="openWindow">Open</button>
-</template>
-```
-
-<script setup>
-import SimpleWindowDemo from '../examples/SimpleWindowDemo.vue'
-</script>
-
 ## `WindowProvider`
 
 用于给子树里的 `useWindows()` / `WindowsDesktop` 注入窗口默认配置。没有包 `WindowProvider` 时，会继续使用内置默认配置。
 
-```vue
-<template>
-  <WindowProvider
-    :animated="false"
-    :min-width="520"
-    :min-height="320"
-    bg-color="var(--bgColor)"
-  >
-    <App />
-  </WindowProvider>
-</template>
-
-<script setup lang="ts">
-import { WindowProvider } from 'vue3-windows'
-</script>
-```
-
-单个窗口的 `create()` 配置优先级更高：
-
-```ts
-windows.create({
-  id: 1,
-  title: 'Demo',
-  minWidth: 360,
-  minHeight: 240,
-})
-```
+单个窗口的 `create()` 配置优先级高于 `WindowProvider`。
 
 支持的默认配置：`animated`、`outsideClickBehavior`、`width`、`height`、`minWidth`、`minHeight`、`maxWidth`、`maxHeight`、`minimizable`、`maximizable`、`closable`、`accentType`、`bgColor`。
 
-需要桌面和 dock 时，再使用 `WindowsDesktop`。也可以通过组件 ref 操作：
+## `globalWindow`
 
-```vue
-<template>
-  <WindowsDesktop ref="desktopRef" />
-</template>
+内置的全局窗口 API，可以在任意模块里直接导入使用。它不依赖 `WindowsDesktop`，也没有 dock，因此会强制隐藏最小化按钮。
 
-<script setup lang="ts">
-import { ref } from 'vue'
-import { WindowsDesktop } from 'vue3-windows'
-import type { WindowsDesktopRef } from 'vue3-windows'
-
-const desktopRef = ref<WindowsDesktopRef | null>(null)
-
-desktopRef.value?.create({
-  id: 'demo',
-  title: 'Demo',
-  component: DemoWindow,
-})
-</script>
-```
-
-## `useWindows(options?)`
+## `useWindows()`
 
 在 `WindowsDesktop` 的子组件中获取当前桌面的窗口 API。它不接收参数。
 
-```ts
-const windows = useWindows()
-windows.hideAll()
-```
-
 如果没有上层 `WindowsDesktop`，`useWindows()` 会创建独立窗口管理器。独立模式没有 dock，因此会强制隐藏最小化按钮。
-
-```ts
-const windows = useWindows({ simple: true })
-```
-
-`simple: true` 会强制创建独立窗口管理器；即使当前组件在 `WindowsDesktop` 内部，也不会使用祖先桌面的窗口 API。
 
 ## `WindowsDesktop`
 
@@ -128,21 +42,13 @@ Ref 暴露 `WindowsRef` 的全部 API：`create`、`close`、`closeAll`、`hide`
 
 ## `WindowsDock`
 
-Default dock component. It is used inside `WindowsDesktop`, reads window context internally, and does not expose task slot props or `TaskComponent`.
+默认 dock 组件。它用于 `WindowsDesktop` 内部，通过上下文读取窗口 API，不暴露 task slot props 或 `TaskComponent`。
 
 ## `Win10Dock`
 
 Win10 风格 dock 组件。它和 `WindowsDock` 一样通过 inject 获取窗口上下文，可以直接放在 `WindowsDesktop` 的 `dock` slot 中。
 
-```vue
-<WindowsDesktop>
-  <template #dock="{ setDockTarget }">
-    <Win10Dock @dock-target-change="setDockTarget" />
-  </template>
-</WindowsDesktop>
-```
-
-`Win10Dock` supports `left`, `tasks`, and `right` slots. The `tasks` slot provides `windows`, `items`, `minimizedItems`, and `TaskComponent`.
+`Win10Dock` 支持 `left`、`tasks`、`right` slots。`tasks` slot 提供 `windows`、`items`、`minimizedItems` 和 `TaskComponent`。
 
 ## `create(options)`
 
@@ -154,20 +60,15 @@ Win10 风格 dock 组件。它和 `WindowsDock` 一样通过 inject 获取窗口
 | `props` | `Record<string, unknown>` | 传给内容组件的 props。 |
 | `outsideClickBehavior` | `'none' \| 'hide' \| 'minimize' \| 'remove'` | 点击窗口外部时的行为，默认 `none`。 |
 | `width` | `number` | 初始窗口宽度，默认 `560`。 |
-| `height` | `number` | 初始窗口高度，默认 `420`。 |
-| `minWidth` / `minHeight` | `number` | 最小窗口尺寸。 |
-| `maxWidth` / `maxHeight` | `number` | 最大窗口尺寸。 |
-| `minimizable` | `boolean` | 是否显示最小化按钮。独立 `useWindows()` 模式会强制为 `false`。 |
+| `height` | `number` | 初始窗口高度；不传时按内容高度自适应。 |
+| `minWidth` / `minHeight` | `number` | 最小窗口尺寸，默认 `360` / `300`。 |
+| `maxWidth` / `maxHeight` | `number` | 最大窗口尺寸；自适应高度也会被限制在最大范围内。 |
+| `minimizable` | `boolean` | 是否显示最小化按钮。`globalWindow` 和独立 `useWindows()` 模式会强制为 `false`。 |
 | `maximizable` | `boolean` | 是否显示最大化按钮。 |
 | `closable` | `boolean` | 是否显示关闭按钮。 |
 
 ## `useCurrentWindow()`
 
 在窗口内部组件里获取当前窗口上下文。
-
-```ts
-const currentWindow = useCurrentWindow()
-currentWindow.close()
-```
 
 可直接操作当前窗口的 `close`、`hide`、`show`、`minimize`、`maximize`、`restore`、`moveTop`、`setState` 和 `update`。

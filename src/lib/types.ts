@@ -53,7 +53,6 @@ export interface WindowsRef {
 }
 
 export interface UseWindowsOptions {
-  simple?: boolean
   animated?: boolean
   maximizeTarget?: WindowAnchorTarget | null
   minimizable?: boolean

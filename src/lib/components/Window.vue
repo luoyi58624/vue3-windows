@@ -25,6 +25,7 @@
         @pointerdown.capture="handlePanelPointerDown"
         @focusin="bringToFront"
       >
+        <div class="window-dialog__surface">
         <header
           class="window-dialog__header"
           :class="{ 'is-drag-disabled': !draggable || renderedWindowState === 'minimized' || isWindowAnimating }"
@@ -92,19 +93,19 @@
         <footer v-if="$slots.footer" class="window-dialog__footer">
           <slot name="footer" />
         </footer>
-      </section>
+        </div>
 
-      <template v-if="resizable && renderedWindowState === 'normal' && !isWindowAnimating">
-        <div
-          v-for="direction in resizeDirections"
-          :key="direction"
-          class="window-dialog__resize-handle"
-          :class="`window-dialog__resize-handle--${direction}`"
-          :style="getResizeHandleStyle(direction)"
-          aria-hidden="true"
-          @mousedown.stop.prevent="startResize(direction, $event)"
-        />
-      </template>
+        <template v-if="resizable && renderedWindowState === 'normal' && !isWindowAnimating">
+          <div
+            v-for="direction in resizeDirections"
+            :key="direction"
+            class="window-dialog__resize-handle"
+            :class="`window-dialog__resize-handle--${direction}`"
+            aria-hidden="true"
+            @mousedown.stop.prevent="startResize(direction, $event)"
+          />
+        </template>
+      </section>
     </div>
   </Teleport>
 
@@ -133,6 +134,9 @@ type WindowRuntimeState = {
   activeWindowId: symbol | null
   activeWindowState: WindowState | null
   zIndexSeed: number
+  documentScrollLockWindowIds: Set<symbol>
+  documentElementOverflow: string | null
+  bodyOverflow: string | null
 }
 
 type WindowActiveEventDetail = {
@@ -145,8 +149,6 @@ const HEADER_VISIBLE_HEIGHT = 56
 const RESTORE_POINTER_GUTTER = 8
 const MAXIMIZED_RESTORE_RIGHT_ANCHOR_WIDTH = 180
 const TOP_DRAG_MARGIN = 0
-const EDGE_HANDLE_SIZE = 10
-const CORNER_HANDLE_SIZE = 18
 const WINDOW_STANDARD_TRANSITION_MS = 140
 const WINDOW_MAXIMIZE_TRANSITION_MS = 120
 const WINDOW_MINIMIZE_TRANSITION_MS = 180
@@ -232,9 +234,8 @@ const props = withDefaults(
     animated: true,
     outsideClickBehavior: 'none',
     minWidth: 360,
-    minHeight: 240,
+    minHeight: 300,
     maxWidth: Number.POSITIVE_INFINITY,
-    maxHeight: Number.POSITIVE_INFINITY,
     modal: false,
     draggable: true,
     minimizable: true,
@@ -278,6 +279,7 @@ const isWindowAnimating = ref(false)
 const renderedWindowState = ref<WindowState>('normal')
 const hasInitialized = ref(false)
 const hasRegisteredOpen = ref(false)
+const hasManualHeight = ref(false)
 const isActiveWindow = ref(false)
 const panelTarget = shallowRef<string | HTMLElement>('body')
 const dockTarget = shallowRef<string | HTMLElement>('body')
@@ -315,6 +317,8 @@ let windowTransitionFrame = 0
 let windowTransitionVersion = 0
 let minimizeTransitionPending = false
 
+const isAutoHeightWindow = computed(() => props.height === undefined && !hasManualHeight.value)
+
 const shouldRenderPanel = computed(
   () => (
     visible.value && (windowState.value !== 'minimized' || isWindowAnimating.value)
@@ -328,6 +332,7 @@ const dialogClass = computed(() => [
     'window-dialog--animating': isWindowAnimating.value,
     'window-dialog--dragging': isDragging.value,
     'window-dialog--active': isActiveWindow.value,
+    'window-dialog--auto-height': isAutoHeightWindow.value,
   },
 ])
 
@@ -389,15 +394,27 @@ const panelStyle = computed(() => {
     }
   }
 
-  return {
+  const viewport = getViewport()
+  const limits = getSizeLimits(viewport)
+  const style: Record<string, string> = {
     ...accentVars.value,
     ...motionVars,
     left: `${windowRect.left}px`,
     top: `${windowRect.top}px`,
     width: `${windowRect.width}px`,
-    height: `${windowRect.height}px`,
+    maxHeight: `${limits.maxHeight}px`,
     zIndex: String(zIndex.value + 1),
   }
+
+  if (limits.minHeight > 0) {
+    style.minHeight = `${limits.minHeight}px`
+  }
+
+  if (!isAutoHeightWindow.value) {
+    style.height = `${windowRect.height}px`
+  }
+
+  return style
 })
 
 const dialogLabel = computed(() => props.title || 'Dialog')
@@ -436,9 +453,18 @@ watch(
 )
 
 watch(
+  () => [visible.value, windowState.value, maximizeTarget.value] as const,
+  () => {
+    syncDocumentScrollLock()
+  },
+  { immediate: true },
+)
+
+watch(
   visible,
   (show, wasShown) => {
     if (show) {
+      const wasInitialized = hasInitialized.value
       resolvePanelTarget()
       resolveDockTarget()
       initializeWindow()
@@ -447,7 +473,7 @@ watch(
       renderedWindowState.value = windowState.value
       bringToFront()
       emit('open')
-      if (wasShown === false && hasInitialized.value) {
+      if (wasShown === false && wasInitialized) {
         animateVisibilityChange(true, () => {
           focusPanelOnNextTick()
           emit('opened')
@@ -463,7 +489,6 @@ watch(
       })
       return
     }
-
     stopPointerTracking()
     emit('close')
     if (windowState.value === 'minimized') {
@@ -529,6 +554,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopPointerTracking()
   disableEscapeClose()
+  releaseDocumentScrollLock()
   unregisterOpenWindow()
   clearWindowTransition()
   window.removeEventListener(WINDOW_ACTIVE_EVENT, handleActiveWindowChange)
@@ -591,7 +617,7 @@ function createInitialRect(): WindowRect {
   const viewport = getViewport()
   const limits = getSizeLimits(viewport)
   const width = clampValue(props.width ?? WINDOW_DEFAULT_WIDTH, limits.minWidth, limits.maxWidth)
-  const height = clampValue(props.height ?? WINDOW_DEFAULT_HEIGHT, limits.minHeight, limits.maxHeight)
+  const height = resolveInitialHeight(limits)
   const centeredRect = clampRect({
     width,
     height,
@@ -632,6 +658,14 @@ function createInitialRect(): WindowRect {
   })
 }
 
+function resolveInitialHeight(limits: ReturnType<typeof getSizeLimits>) {
+  if (isAutoHeightWindow.value) {
+    return Math.min(WINDOW_DEFAULT_HEIGHT, limits.maxHeight)
+  }
+
+  return clampValue(props.height ?? WINDOW_DEFAULT_HEIGHT, limits.minHeight, limits.maxHeight)
+}
+
 function startDrag(event: MouseEvent) {
   if (!props.draggable || windowState.value === 'minimized' || isWindowAnimating.value) {
     return
@@ -644,7 +678,7 @@ function startDrag(event: MouseEvent) {
     return
   }
 
-  const startRect = { ...windowRect }
+  const startRect = getCurrentWindowRect()
   const startX = event.clientX
   const startY = event.clientY
 
@@ -658,11 +692,13 @@ function startDrag(event: MouseEvent) {
 }
 
 function startDragFromMaximized(event: MouseEvent) {
+  hasManualHeight.value = true
   const startX = event.clientX
   const startY = event.clientY
   const maximizedRect = getMaximizedRect()
+  const limits = getSizeLimits(getViewport())
   const restoreWidth = clampValue(windowRect.width, props.minWidth, maximizedRect.width)
-  const restoreHeight = clampValue(windowRect.height, props.minHeight, maximizedRect.height)
+  const restoreHeight = clampValue(windowRect.height, limits.minHeight, maximizedRect.height)
   const pointerOffsetX = getMaximizedRestorePointerOffsetX(startX - maximizedRect.left, maximizedRect.width, restoreWidth)
   const pointerOffsetY = clampValue(startY - maximizedRect.top, 12, HEADER_VISIBLE_HEIGHT - 8)
   let hasRestored = false
@@ -869,7 +905,13 @@ function startResize(direction: ResizeDirection, event: MouseEvent) {
 
   bringToFront()
 
-  const startRect = { ...windowRect }
+  const startRect = getCurrentWindowRect()
+  applyRect(startRect)
+
+  if (direction.includes('n') || direction.includes('s')) {
+    hasManualHeight.value = true
+  }
+
   const startX = event.clientX
   const startY = event.clientY
 
@@ -984,6 +1026,48 @@ function enableEscapeClose() {
 
 function disableEscapeClose() {
   cleanupEscapeTracking?.()
+}
+
+function syncDocumentScrollLock() {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  const runtimeState = getWindowRuntimeState()
+  const shouldLock = visible.value && windowState.value === 'maximized' && !maximizeTarget.value
+
+  if (shouldLock) {
+    if (runtimeState.documentScrollLockWindowIds.size === 0) {
+      runtimeState.documentElementOverflow = document.documentElement.style.overflow
+      runtimeState.bodyOverflow = document.body.style.overflow
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    }
+    runtimeState.documentScrollLockWindowIds.add(instanceId)
+    return
+  }
+
+  releaseDocumentScrollLock()
+}
+
+function releaseDocumentScrollLock() {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  const runtimeState = getWindowRuntimeState()
+  if (!runtimeState.documentScrollLockWindowIds.delete(instanceId)) {
+    return
+  }
+
+  if (runtimeState.documentScrollLockWindowIds.size > 0) {
+    return
+  }
+
+  document.documentElement.style.overflow = runtimeState.documentElementOverflow ?? ''
+  document.body.style.overflow = runtimeState.bodyOverflow ?? ''
+  runtimeState.documentElementOverflow = null
+  runtimeState.bodyOverflow = null
 }
 
 function closeOnPressEscapeActive() {
@@ -1339,73 +1423,6 @@ function emitWindowRestore(targetState: RestoreState) {
   emit('restore')
 }
 
-function getResizeHandleStyle(direction: ResizeDirection) {
-  const left = windowRect.left
-  const top = windowRect.top
-  const right = left + windowRect.width
-  const bottom = top + windowRect.height
-  const edgeInset = CORNER_HANDLE_SIZE
-
-  switch (direction) {
-    case 'n':
-      return {
-        left: `${left + edgeInset}px`,
-        top: `${top - EDGE_HANDLE_SIZE / 2}px`,
-        width: `${Math.max(0, windowRect.width - edgeInset * 2)}px`,
-        height: `${EDGE_HANDLE_SIZE}px`,
-      }
-    case 's':
-      return {
-        left: `${left + edgeInset}px`,
-        top: `${bottom - EDGE_HANDLE_SIZE / 2}px`,
-        width: `${Math.max(0, windowRect.width - edgeInset * 2)}px`,
-        height: `${EDGE_HANDLE_SIZE}px`,
-      }
-    case 'e':
-      return {
-        left: `${right - EDGE_HANDLE_SIZE / 2}px`,
-        top: `${top + edgeInset}px`,
-        width: `${EDGE_HANDLE_SIZE}px`,
-        height: `${Math.max(0, windowRect.height - edgeInset * 2)}px`,
-      }
-    case 'w':
-      return {
-        left: `${left - EDGE_HANDLE_SIZE / 2}px`,
-        top: `${top + edgeInset}px`,
-        width: `${EDGE_HANDLE_SIZE}px`,
-        height: `${Math.max(0, windowRect.height - edgeInset * 2)}px`,
-      }
-    case 'ne':
-      return {
-        left: `${right - CORNER_HANDLE_SIZE / 2}px`,
-        top: `${top - CORNER_HANDLE_SIZE / 2}px`,
-        width: `${CORNER_HANDLE_SIZE}px`,
-        height: `${CORNER_HANDLE_SIZE}px`,
-      }
-    case 'nw':
-      return {
-        left: `${left - CORNER_HANDLE_SIZE / 2}px`,
-        top: `${top - CORNER_HANDLE_SIZE / 2}px`,
-        width: `${CORNER_HANDLE_SIZE}px`,
-        height: `${CORNER_HANDLE_SIZE}px`,
-      }
-    case 'se':
-      return {
-        left: `${right - CORNER_HANDLE_SIZE / 2}px`,
-        top: `${bottom - CORNER_HANDLE_SIZE / 2}px`,
-        width: `${CORNER_HANDLE_SIZE}px`,
-        height: `${CORNER_HANDLE_SIZE}px`,
-      }
-    case 'sw':
-      return {
-        left: `${left - CORNER_HANDLE_SIZE / 2}px`,
-        top: `${bottom - CORNER_HANDLE_SIZE / 2}px`,
-        width: `${CORNER_HANDLE_SIZE}px`,
-        height: `${CORNER_HANDLE_SIZE}px`,
-      }
-  }
-}
-
 function getResizeCursor(direction: ResizeDirection) {
   switch (direction) {
     case 'n':
@@ -1421,6 +1438,20 @@ function getResizeCursor(direction: ResizeDirection) {
     case 'se':
       return 'nwse-resize'
   }
+}
+
+function getCurrentWindowRect() {
+  const rect = panelRef.value?.getBoundingClientRect()
+  if (!rect || rect.width <= 0 || rect.height <= 0) {
+    return { ...windowRect }
+  }
+
+  return clampRect({
+    left: Math.round(rect.left),
+    top: Math.round(rect.top),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+  })
 }
 
 function getResizedRect(
@@ -1542,8 +1573,8 @@ function getViewport() {
 function getSizeLimits(viewport: { width: number; height: number }) {
   const viewportMaxWidth = Math.max(280, viewport.width - VIEWPORT_MARGIN * 2)
   const viewportMaxHeight = Math.max(200, viewport.height - VIEWPORT_MARGIN * 2)
-  const maxWidth = Math.min(props.maxWidth, viewportMaxWidth)
-  const maxHeight = Math.min(props.maxHeight, viewportMaxHeight)
+  const maxWidth = Math.min(props.maxWidth ?? Number.POSITIVE_INFINITY, viewportMaxWidth)
+  const maxHeight = Math.min(props.maxHeight ?? Number.POSITIVE_INFINITY, viewportMaxHeight)
   const minWidth = clampValue(props.minWidth, 0, maxWidth)
   const minHeight = clampValue(props.minHeight, 0, maxHeight)
 
@@ -1573,7 +1604,11 @@ function getWindowRuntimeState(): WindowRuntimeState {
   const globalState = globalThis as typeof globalThis & Record<string, unknown>
   const existingState = globalState[WINDOW_RUNTIME_KEY]
   if (existingState && typeof existingState === 'object') {
-    return existingState as WindowRuntimeState
+    const runtimeState = existingState as WindowRuntimeState
+    runtimeState.documentScrollLockWindowIds ??= new Set<symbol>()
+    runtimeState.documentElementOverflow ??= null
+    runtimeState.bodyOverflow ??= null
+    return runtimeState
   }
 
   const initialState: WindowRuntimeState = {
@@ -1583,6 +1618,9 @@ function getWindowRuntimeState(): WindowRuntimeState {
     activeWindowId: null,
     activeWindowState: null,
     zIndexSeed: 2100,
+    documentScrollLockWindowIds: new Set<symbol>(),
+    documentElementOverflow: null,
+    bodyOverflow: null,
   }
   globalState[WINDOW_RUNTIME_KEY] = initialState
   return initialState
@@ -1712,7 +1750,7 @@ defineExpose({
   margin: 0;
   padding: 0;
   border-radius: var(--window-dialog-radius, 14px);
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.04);
   border: 1px solid rgba(148, 163, 184, 0.28);
   display: flex;
@@ -1751,6 +1789,23 @@ defineExpose({
     box-shadow var(--window-dialog-fade-ms, 72ms) linear;
   will-change: left, top, width, height, transform, opacity, border-radius;
   backface-visibility: hidden;
+}
+
+:global(.window-dialog__surface) {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  max-height: inherit;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--window-dialog-surface);
+  color: var(--window-dialog-text-color);
+}
+
+:global(.window-dialog--auto-height:not(.window-dialog--animating):not(.window-dialog--maximized) .window-dialog__surface) {
+  height: auto;
 }
 
 :global(.window-dialog--maximized:not(.window-dialog--animating)) {
@@ -1879,7 +1934,8 @@ defineExpose({
 }
 
 :global(.window-dialog__body) {
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 20px 24px;
   overflow: auto;
   background: var(--window-dialog-surface);
@@ -1896,9 +1952,65 @@ defineExpose({
 }
 
 :global(.window-dialog__resize-handle) {
-  position: fixed;
-  z-index: 2100;
+  position: absolute;
+  z-index: 2;
   pointer-events: auto;
+}
+
+:global(.window-dialog__resize-handle--n) {
+  top: -5px;
+  right: 18px;
+  left: 18px;
+  height: 10px;
+}
+
+:global(.window-dialog__resize-handle--s) {
+  right: 18px;
+  bottom: -5px;
+  left: 18px;
+  height: 10px;
+}
+
+:global(.window-dialog__resize-handle--e) {
+  top: 18px;
+  right: -5px;
+  bottom: 18px;
+  width: 10px;
+}
+
+:global(.window-dialog__resize-handle--w) {
+  top: 18px;
+  bottom: 18px;
+  left: -5px;
+  width: 10px;
+}
+
+:global(.window-dialog__resize-handle--ne),
+:global(.window-dialog__resize-handle--nw),
+:global(.window-dialog__resize-handle--se),
+:global(.window-dialog__resize-handle--sw) {
+  width: 18px;
+  height: 18px;
+}
+
+:global(.window-dialog__resize-handle--ne) {
+  top: -9px;
+  right: -9px;
+}
+
+:global(.window-dialog__resize-handle--nw) {
+  top: -9px;
+  left: -9px;
+}
+
+:global(.window-dialog__resize-handle--se) {
+  right: -9px;
+  bottom: -9px;
+}
+
+:global(.window-dialog__resize-handle--sw) {
+  bottom: -9px;
+  left: -9px;
 }
 
 :global(.window-dialog__resize-handle--n),

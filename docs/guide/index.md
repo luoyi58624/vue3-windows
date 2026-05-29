@@ -1,36 +1,99 @@
 # 介绍
 
-`vue3-windows` 的入口很小：
+`vue3-windows` windows 窗口管理器
 
-- `useWindows()` 创建或访问窗口管理器
-- `WindowsDesktop` 创建带 dock 的桌面窗口管理器
-- `useCurrentWindow()` 让窗口内部组件操作当前窗口
-
-## 最简示例
+## 入门示例
 
 <ClientOnly>
-  <SimpleWindowDemo />
+  <SimpleDemo />
 </ClientOnly>
 
 ```vue
 <script setup lang="ts">
-import { useWindows } from 'vue3-windows'
+import { globalWindow } from 'vue3-windows'
+</script>
 
-const windows = useWindows()
+<template>
+  <button type="button" @click="globalWindow.create({id: 'Demo'})">打开窗口</button>
+</template>
+```
 
-function openWindow() {
-  windows.create({
-    id: 1,
-    title: 'Demo',
+## Form 表单
+
+<ClientOnly>
+  <FormDemo />
+</ClientOnly>
+
+```vue
+<script setup lang="ts">
+import { defineComponent, ref } from 'vue'
+import { globalWindow, useCurrentWindow } from 'vue3-windows'
+
+const FormContent = defineComponent({
+  setup() {
+    const currentWindow = useCurrentWindow()
+    const form = ref({
+      name: '',
+      phone: '',
+      remark: '',
+    })
+
+    function cancel() {
+      currentWindow.close()
+    }
+
+    function confirm() {
+      currentWindow.close()
+    }
+
+    return {
+      form,
+      cancel,
+      confirm,
+    }
+  },
+  template: `
+    <form @submit.prevent="confirm">
+      <label>
+        客户名称
+        <input v-model="form.name" type="text" />
+      </label>
+
+      <label>
+        联系电话
+        <input v-model="form.phone" type="tel" />
+      </label>
+
+      <label>
+        备注
+        <textarea v-model="form.remark" />
+      </label>
+
+      <footer>
+        <button type="button" @click="cancel">取消</button>
+        <button type="submit">确认</button>
+      </footer>
+    </form>
+  `,
+})
+
+function openForm() {
+  globalWindow.create({
+    id: 'form-demo',
+    title: 'Form 表单',
+    width: 520,
+    height: 420,
+    component: FormContent,
   })
 }
 </script>
 
 <template>
-  <button type="button" @click="openWindow">打开窗口</button>
+  <button type="button" @click="openForm">打开表单窗口</button>
 </template>
 ```
 
 <script setup>
-import SimpleWindowDemo from '../examples/SimpleWindowDemo.vue'
+import SimpleDemo from '../examples/simple/index.vue'
+import FormDemo from '../examples/form/index.vue'
 </script>
