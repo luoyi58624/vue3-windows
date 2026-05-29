@@ -15,7 +15,6 @@ function openForm() {
     id: 'form-demo',
     title: 'Form 表单',
     width: 520,
-    height: 420,
     component: Form,
   })
 }
