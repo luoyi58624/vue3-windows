@@ -2,6 +2,7 @@
 
 此页面由 `bun run release` 在发布时根据 git commit message 自动生成。
 
+- `5e1c0bb` 2026-05-30 - fix: provider responsive bug
 - `a95b3cf` 2026-05-29 - fix: remove globalWindows, prevent continuous z-indexing
 - `06afe3f` 2026-05-29 - fix: preserve context for global windows
 - `b761d1c` 2026-05-29 - fix: initialize window position before first render
