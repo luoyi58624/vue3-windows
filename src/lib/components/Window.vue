@@ -25,6 +25,7 @@
         @pointerdown.capture="handlePanelPointerDown"
         @focusin="bringToFront"
       >
+        <div class="window-dialog__surface">
         <header
           class="window-dialog__header"
           :class="{ 'is-drag-disabled': !draggable || renderedWindowState === 'minimized' || isWindowAnimating }"
@@ -92,6 +93,7 @@
         <footer v-if="$slots.footer" class="window-dialog__footer">
           <slot name="footer" />
         </footer>
+        </div>
 
         <template v-if="resizable && renderedWindowState === 'normal' && !isWindowAnimating">
           <div
@@ -1687,7 +1689,7 @@ defineExpose({
   margin: 0;
   padding: 0;
   border-radius: var(--window-dialog-radius, 14px);
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.04);
   border: 1px solid rgba(148, 163, 184, 0.28);
   display: flex;
@@ -1726,6 +1728,23 @@ defineExpose({
     box-shadow var(--window-dialog-fade-ms, 72ms) linear;
   will-change: left, top, width, height, transform, opacity, border-radius;
   backface-visibility: hidden;
+}
+
+:global(.window-dialog__surface) {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  max-height: inherit;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--window-dialog-surface);
+  color: var(--window-dialog-text-color);
+}
+
+:global(.window-dialog--auto-height:not(.window-dialog--animating):not(.window-dialog--maximized) .window-dialog__surface) {
+  height: auto;
 }
 
 :global(.window-dialog--maximized:not(.window-dialog--animating)) {
@@ -1878,7 +1897,7 @@ defineExpose({
 }
 
 :global(.window-dialog__resize-handle--n) {
-  top: 0;
+  top: -5px;
   right: 18px;
   left: 18px;
   height: 10px;
@@ -1886,14 +1905,14 @@ defineExpose({
 
 :global(.window-dialog__resize-handle--s) {
   right: 18px;
-  bottom: 0;
+  bottom: -5px;
   left: 18px;
   height: 10px;
 }
 
 :global(.window-dialog__resize-handle--e) {
   top: 18px;
-  right: 0;
+  right: -5px;
   bottom: 18px;
   width: 10px;
 }
@@ -1901,7 +1920,7 @@ defineExpose({
 :global(.window-dialog__resize-handle--w) {
   top: 18px;
   bottom: 18px;
-  left: 0;
+  left: -5px;
   width: 10px;
 }
 
@@ -1914,23 +1933,23 @@ defineExpose({
 }
 
 :global(.window-dialog__resize-handle--ne) {
-  top: 0;
-  right: 0;
+  top: -9px;
+  right: -9px;
 }
 
 :global(.window-dialog__resize-handle--nw) {
-  top: 0;
-  left: 0;
+  top: -9px;
+  left: -9px;
 }
 
 :global(.window-dialog__resize-handle--se) {
-  right: 0;
-  bottom: 0;
+  right: -9px;
+  bottom: -9px;
 }
 
 :global(.window-dialog__resize-handle--sw) {
-  bottom: 0;
-  left: 0;
+  bottom: -9px;
+  left: -9px;
 }
 
 :global(.window-dialog__resize-handle--n),

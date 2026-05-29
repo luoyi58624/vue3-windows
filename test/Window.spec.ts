@@ -479,7 +479,7 @@ describe('useWindows', () => {
     }
   })
 
-  it('keeps resize handles attached to auto-height window edges', async () => {
+  it('keeps resize handles outside auto-height window edges', async () => {
     const wrapper = mount(Host, {
       attachTo: document.body,
     })
@@ -499,16 +499,18 @@ describe('useWindows', () => {
       await nextTick()
 
       const panel = findPanelByText('Auto Height Resize Handles')
+      const surface = panel?.querySelector('.window-dialog__surface') as HTMLElement | null
       const southHandle = panel?.querySelector('.window-dialog__resize-handle--s') as HTMLElement | null
       const eastHandle = panel?.querySelector('.window-dialog__resize-handle--e') as HTMLElement | null
 
       expect(panel).toBeDefined()
+      expect(surface).toBeDefined()
       expect(southHandle).toBeDefined()
       expect(eastHandle).toBeDefined()
       expect(southHandle?.closest('.window-dialog')).toBe(panel)
       expect(eastHandle?.closest('.window-dialog')).toBe(panel)
-      expect(southHandle?.style.top).toBe('')
-      expect(eastHandle?.style.height).toBe('')
+      expect(surface?.contains(southHandle)).toBe(false)
+      expect(surface?.contains(eastHandle)).toBe(false)
     } finally {
       wrapper.unmount()
     }
