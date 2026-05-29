@@ -2,7 +2,7 @@
 
 ## 最简单用法
 
-最简单的方式是直接创建独立窗口管理器，不需要先放置 `WindowsDesktop`。
+最简单的方式是直接使用内置的全局窗口 API，不需要先放置 `WindowsDesktop`。
 
 <ClientOnly>
   <SimpleWindowDemo />
@@ -10,12 +10,10 @@
 
 ```vue
 <script setup lang="ts">
-import { useWindows } from 'vue3-windows'
-
-const windows = useWindows()
+import { globalWindow } from 'vue3-windows'
 
 function openWindow() {
-  windows.create({
+  globalWindow.create({
     id: 1,
     title: 'Demo',
   })
@@ -87,7 +85,20 @@ desktopRef.value?.create({
 </script>
 ```
 
-## `useWindows(options?)`
+## `globalWindow`
+
+内置的全局窗口 API，可以在任意模块里直接导入使用。它不依赖 `WindowsDesktop`，也没有 dock，因此会强制隐藏最小化按钮。
+
+```ts
+import { globalWindow } from 'vue3-windows'
+
+globalWindow.create({
+  id: 'demo',
+  title: 'Demo',
+})
+```
+
+## `useWindows()`
 
 在 `WindowsDesktop` 的子组件中获取当前桌面的窗口 API。它不接收参数。
 
@@ -97,12 +108,6 @@ windows.hideAll()
 ```
 
 如果没有上层 `WindowsDesktop`，`useWindows()` 会创建独立窗口管理器。独立模式没有 dock，因此会强制隐藏最小化按钮。
-
-```ts
-const windows = useWindows({ simple: true })
-```
-
-`simple: true` 会强制创建独立窗口管理器；即使当前组件在 `WindowsDesktop` 内部，也不会使用祖先桌面的窗口 API。
 
 ## `WindowsDesktop`
 
@@ -157,7 +162,7 @@ Win10 风格 dock 组件。它和 `WindowsDock` 一样通过 inject 获取窗口
 | `height` | `number` | 初始窗口高度，默认 `420`。 |
 | `minWidth` / `minHeight` | `number` | 最小窗口尺寸。 |
 | `maxWidth` / `maxHeight` | `number` | 最大窗口尺寸。 |
-| `minimizable` | `boolean` | 是否显示最小化按钮。独立 `useWindows()` 模式会强制为 `false`。 |
+| `minimizable` | `boolean` | 是否显示最小化按钮。`globalWindow` 和独立 `useWindows()` 模式会强制为 `false`。 |
 | `maximizable` | `boolean` | 是否显示最大化按钮。 |
 | `closable` | `boolean` | 是否显示关闭按钮。 |
 
