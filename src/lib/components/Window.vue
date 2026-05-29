@@ -419,6 +419,10 @@ const panelStyle = computed(() => {
 
 const dialogLabel = computed(() => props.title || 'Dialog')
 
+if (visible.value) {
+  initializeWindow()
+}
+
 watch(
   () => props.appendToBody,
   () => {

@@ -253,6 +253,21 @@ const VisibilityToggleHost = defineComponent({
   `,
 })
 
+const InitiallyVisibleWindowHost = defineComponent({
+  name: 'InitiallyVisibleWindowHost',
+  components: {
+    WindowDialog,
+  },
+  setup() {
+    const visible = ref(true)
+
+    return {
+      visible,
+    }
+  },
+  template: '<WindowDialog v-model="visible" title="Initially Visible" />',
+})
+
 const ForcedStandaloneHost = defineComponent({
   name: 'ForcedStandaloneHost',
   setup() {
@@ -418,6 +433,21 @@ describe('useWindows', () => {
       expect(panel).toBeDefined()
       expect(panel?.style.width).toBe('720px')
       expect(panel?.style.height).toBe('360px')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('positions initially visible windows before the first rendered frame', async () => {
+    const wrapper = mount(InitiallyVisibleWindowHost, {
+      attachTo: document.body,
+    })
+
+    try {
+      const panel = findPanelByText('Initially Visible')
+      expect(panel).toBeDefined()
+      expect(panel?.style.left).toBe(`${Math.round((window.innerWidth - 560) / 2)}px`)
+      expect(panel?.style.top).toBe(`${Math.round(Math.max(0, (window.innerHeight - 420) / 2 - 24))}px`)
     } finally {
       wrapper.unmount()
     }
