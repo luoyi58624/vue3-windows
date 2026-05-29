@@ -232,6 +232,7 @@ const props = withDefaults(
     animated: true,
     outsideClickBehavior: 'none',
     minWidth: 360,
+    minHeight: 300,
     maxWidth: Number.POSITIVE_INFINITY,
     modal: false,
     draggable: true,
@@ -1573,7 +1574,7 @@ function getSizeLimits(viewport: { width: number; height: number }) {
   const maxWidth = Math.min(props.maxWidth ?? Number.POSITIVE_INFINITY, viewportMaxWidth)
   const maxHeight = Math.min(props.maxHeight ?? Number.POSITIVE_INFINITY, viewportMaxHeight)
   const minWidth = clampValue(props.minWidth, 0, maxWidth)
-  const minHeight = clampValue(props.minHeight ?? getDefaultMinHeight(), 0, maxHeight)
+  const minHeight = clampValue(props.minHeight, 0, maxHeight)
 
   return {
     minWidth,
@@ -1581,10 +1582,6 @@ function getSizeLimits(viewport: { width: number; height: number }) {
     maxWidth,
     maxHeight,
   }
-}
-
-function getDefaultMinHeight() {
-  return isAutoHeightWindow.value ? 0 : 240
 }
 
 function clampValue(value: number, min: number, max: number) {

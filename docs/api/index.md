@@ -160,7 +160,7 @@ Win10 风格 dock 组件。它和 `WindowsDock` 一样通过 inject 获取窗口
 | `outsideClickBehavior` | `'none' \| 'hide' \| 'minimize' \| 'remove'` | 点击窗口外部时的行为，默认 `none`。 |
 | `width` | `number` | 初始窗口宽度，默认 `560`。 |
 | `height` | `number` | 初始窗口高度；不传时按内容高度自适应。 |
-| `minWidth` / `minHeight` | `number` | 最小窗口尺寸。 |
+| `minWidth` / `minHeight` | `number` | 最小窗口尺寸，默认 `360` / `300`。 |
 | `maxWidth` / `maxHeight` | `number` | 最大窗口尺寸；自适应高度也会被限制在最大范围内。 |
 | `minimizable` | `boolean` | 是否显示最小化按钮。`globalWindow` 和独立 `useWindows()` 模式会强制为 `false`。 |
 | `maximizable` | `boolean` | 是否显示最大化按钮。 |

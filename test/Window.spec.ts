@@ -443,6 +443,7 @@ describe('useWindows', () => {
       const panel = findPanelByText('Auto Height')
       expect(panel).toBeDefined()
       expect(panel?.style.height).toBe('')
+      expect(panel?.style.minHeight).toBe('300px')
       expect(panel?.style.maxHeight).toBe(`${window.innerHeight - 32}px`)
     } finally {
       wrapper.unmount()
