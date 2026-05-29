@@ -2,13 +2,14 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { useCurrentWindow, useWindows, WindowProvider, WindowsDesktop } from '../src'
+import { globalWindow, useCurrentWindow, useWindows, WindowProvider, WindowsDesktop } from '../src'
 import WindowDialog from '../src/lib/components/Window.vue'
 
 const RUNTIME_KEY = '__window_dialog_runtime__'
 const RECT_KEY = '__window_dialog_last_rect__'
 
 function resetWindowRuntime() {
+  globalWindow.closeAll()
   delete (globalThis as Record<string, unknown>)[RUNTIME_KEY]
   window.localStorage.removeItem(RECT_KEY)
   document.body.innerHTML = ''
@@ -244,11 +245,11 @@ const ForcedStandaloneHost = defineComponent({
   name: 'ForcedStandaloneHost',
   setup() {
     const desktopWindows = ref<ReturnType<typeof useWindows> | null>(null)
-    const standaloneWindows = ref<ReturnType<typeof useWindows> | null>(null)
+    const standaloneWindows = ref<typeof globalWindow | null>(null)
 
     function bindWindows() {
       desktopWindows.value = useWindows()
-      standaloneWindows.value = useWindows({ simple: true })
+      standaloneWindows.value = globalWindow
     }
 
     function openWindows() {

@@ -1,15 +1,13 @@
 <template>
   <section class="simple-window-demo">
-    <button type="button" class="simple-window-demo__button" @click="windows.create({id: 'Demo'})">
+    <button type="button" class="simple-window-demo__button" @click="globalWindow.create({id: 'Demo'})">
       打开窗口
     </button>
   </section>
 </template>
 
 <script setup lang="ts">
-import { useWindows } from 'vue3-windows'
-
-const windows = useWindows()
+import { globalWindow } from 'vue3-windows'
 </script>
 
 <style scoped>
