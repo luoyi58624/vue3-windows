@@ -1,6 +1,6 @@
 <template>
   <section class="simple-window-demo">
-    <button type="button" class="simple-window-demo__button" @click="openWindow">
+    <button type="button" class="simple-window-demo__button" @click="windows.create({id: 'Demo'})">
       打开窗口
     </button>
   </section>
@@ -10,13 +10,6 @@
 import { useWindows } from 'vue3-windows'
 
 const windows = useWindows()
-
-function openWindow() {
-  windows.create({
-    id: 1,
-    title: 'Demo',
-  })
-}
 </script>
 
 <style scoped>

@@ -3,6 +3,7 @@ import { defineComponent, h, nextTick, ref } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { useCurrentWindow, useWindows, WindowProvider, WindowsDesktop } from '../src'
+import WindowDialog from '../src/lib/components/Window.vue'
 
 const RUNTIME_KEY = '__window_dialog_runtime__'
 const RECT_KEY = '__window_dialog_last_rect__'
@@ -216,6 +217,29 @@ const StandaloneHost = defineComponent({
   `,
 })
 
+const VisibilityToggleHost = defineComponent({
+  name: 'VisibilityToggleHost',
+  components: {
+    WindowDialog,
+  },
+  setup() {
+    const visible = ref(false)
+
+    function openWindow() {
+      visible.value = true
+    }
+
+    return {
+      visible,
+      openWindow,
+    }
+  },
+  template: `
+    <button class="open-window" type="button" @click="openWindow">open</button>
+    <WindowDialog v-model="visible" title="Visibility Toggle" />
+  `,
+})
+
 const ForcedStandaloneHost = defineComponent({
   name: 'ForcedStandaloneHost',
   setup() {
@@ -381,6 +405,26 @@ describe('useWindows', () => {
       expect(panel).toBeDefined()
       expect(panel?.style.width).toBe('720px')
       expect(panel?.style.height).toBe('360px')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('does not run the visibility animation on first open', async () => {
+    const wrapper = mount(VisibilityToggleHost, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await wrapper.get('.open-window').trigger('click')
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Visibility Toggle')
+      expect(panel).toBeDefined()
+      expect(panel?.classList.contains('window-dialog--animating')).toBe(false)
+      expect(panel?.style.transform).toBe('')
     } finally {
       wrapper.unmount()
     }

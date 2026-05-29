@@ -439,6 +439,7 @@ watch(
   visible,
   (show, wasShown) => {
     if (show) {
+      const wasInitialized = hasInitialized.value
       resolvePanelTarget()
       resolveDockTarget()
       initializeWindow()
@@ -447,7 +448,7 @@ watch(
       renderedWindowState.value = windowState.value
       bringToFront()
       emit('open')
-      if (wasShown === false && hasInitialized.value) {
+      if (wasShown === false && wasInitialized) {
         animateVisibilityChange(true, () => {
           focusPanelOnNextTick()
           emit('opened')
