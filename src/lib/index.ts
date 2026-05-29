@@ -4,6 +4,7 @@ export { default as WindowsDesktop } from './components/WindowsDesktop.vue'
 export { default as WindowsDock } from './components/WindowsDock.vue'
 export { useCurrentWindow } from './hooks/currentWindow'
 export { globalWindow } from './hooks/globalWindow'
+export { useGlobalWindow } from './hooks/globalWindow'
 export type {
   AccentType,
   CreateWindowOptions,

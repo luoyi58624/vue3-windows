@@ -1,6 +1,7 @@
 import { computed, defineComponent, h, type PropType } from 'vue'
 
 import { provideCurrentWindowContext } from '../hooks/currentWindow'
+import { inheritWindowOwnerProvides } from '../hooks/windowOwnerContext'
 import type { WindowsItem, WindowsRef } from '../types'
 
 export default defineComponent({
@@ -24,6 +25,8 @@ export default defineComponent({
     },
   },
   setup(props) {
+    inheritWindowOwnerProvides(props.item)
+
     const item = computed(() => props.item)
     const api = computed(() => props.api)
     const minimizedCount = computed(() => props.minimizedCount)

@@ -1,8 +1,8 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent, h, nextTick, ref } from 'vue'
+import { defineComponent, h, inject, nextTick, provide, ref, type InjectionKey } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { globalWindow, useCurrentWindow, useWindows, WindowProvider, WindowsDesktop } from '../src'
+import { globalWindow, useCurrentWindow, useGlobalWindow, useWindows, WindowProvider, WindowsDesktop } from '../src'
 import WindowDialog from '../src/lib/components/Window.vue'
 
 const RUNTIME_KEY = '__window_dialog_runtime__'
@@ -60,6 +60,17 @@ const WindowContent = defineComponent({
           'close',
         ),
       ])
+  },
+})
+
+const parentMessageKey = Symbol('parent-message') as InjectionKey<string>
+
+const InjectedWindowContent = defineComponent({
+  name: 'InjectedWindowContent',
+  setup() {
+    const message = inject(parentMessageKey, 'missing')
+
+    return () => h('div', { class: 'injected-window-content' }, message)
   },
 })
 
@@ -217,6 +228,29 @@ const StandaloneHost = defineComponent({
       <button class="open-window" type="button" @click="openWindow">open</button>
       <button class="open-without-controls" type="button" @click="openWithoutControls">open without controls</button>
     </section>
+  `,
+})
+
+const ContextualGlobalHost = defineComponent({
+  name: 'ContextualGlobalHost',
+  setup() {
+    provide(parentMessageKey, 'from parent provide')
+    const windows = useGlobalWindow()
+
+    function openWindow() {
+      windows.create({
+        id: 'contextual-global',
+        title: 'Contextual Global',
+        component: InjectedWindowContent,
+      })
+    }
+
+    return {
+      openWindow,
+    }
+  },
+  template: `
+    <button class="open-contextual-global" type="button" @click="openWindow">open</button>
   `,
 })
 
@@ -1020,6 +1054,26 @@ describe('useWindows', () => {
 
       expect(panel).toBeDefined()
       expect(body?.textContent?.trim()).toBe('')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('lets context-bound global windows inject parent provides', async () => {
+    const wrapper = mount(ContextualGlobalHost, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      await wrapper.get('.open-contextual-global').trigger('click')
+      await nextTick()
+      await nextTick()
+
+      const content = document.body.querySelector('.injected-window-content')
+      expect(content?.textContent).toBe('from parent provide')
     } finally {
       wrapper.unmount()
     }

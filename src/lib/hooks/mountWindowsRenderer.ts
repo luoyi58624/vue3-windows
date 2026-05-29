@@ -15,12 +15,15 @@ import Window from '../components/Window.vue'
 import WindowContentHost from '../components/WindowContentHost'
 import type { UseWindowsOptions, WindowAnchorTarget, WindowOutsideClickBehavior, WindowsSetupOptions } from '../types'
 import type { useWindowsManager } from './useWindowsManager'
+import { createAppContextWithOwnerContext, type WindowOwnerContext } from './windowOwnerContext'
 
 type WindowsManager = ReturnType<typeof useWindowsManager>
 
 export interface WindowsRendererOptions extends UseWindowsOptions {
   appContext?: AppContext | null
+  ownerContext?: WindowOwnerContext | null
   setupOptions?: Readonly<Ref<WindowsSetupOptions>>
+  api?: WindowsManager['api']
 }
 
 export interface WindowsRendererHandle {
@@ -82,7 +85,7 @@ export function mountWindowsRenderer(
           title: () => item.title,
           default: () => h(WindowContentHost, {
             item,
-            api: manager.api,
+            api: options.api ?? manager.api,
             minimizedCount: manager.minimizedItems.value.length,
             totalCount: manager.model.value.length,
           }),
@@ -95,8 +98,9 @@ export function mountWindowsRenderer(
   document.body.appendChild(renderRoot)
 
   const vnode = h(Renderer)
-  if (options.appContext) {
-    vnode.appContext = options.appContext
+  const appContext = createAppContextWithOwnerContext(options.ownerContext) ?? options.appContext
+  if (appContext) {
+    vnode.appContext = appContext
   }
   render(vnode, renderRoot)
 

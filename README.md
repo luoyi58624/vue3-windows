@@ -40,4 +40,5 @@ function openDetail() {
 
 - `globalWindow` 是内置的全局窗口 API，不需要 `WindowsDesktop`
 - 全局窗口没有 dock，会自动隐藏最小化按钮
+- 窗口内容需要继承当前组件的 `provide` / `inject` 时，在 `setup()` 中使用 `useGlobalWindow()` 获取绑定后的全局窗口 API
 - 需要桌面和 dock 时使用 `WindowsDesktop`

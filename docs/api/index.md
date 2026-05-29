@@ -12,6 +12,12 @@
 
 内置的全局窗口 API，可以在任意模块里直接导入使用。它不依赖 `WindowsDesktop`，也没有 dock，因此会强制隐藏最小化按钮。
 
+## `useGlobalWindow()`
+
+在组件 `setup()` 中获取绑定到当前组件上下文的全局窗口 API。它仍然使用全局窗口管理器，但通过该 API 创建的窗口内容可以继承当前组件可见的 `provide` / `inject` 和应用级上下文。
+
+如果只是在普通模块里打开无上下文依赖的窗口，继续使用 `globalWindow`。如果窗口内容依赖父组件注入、全局组件或应用插件上下文，使用 `useGlobalWindow()`。
+
 ## `useWindows()`
 
 在 `WindowsDesktop` 的子组件中获取当前桌面的窗口 API。它不接收参数。
