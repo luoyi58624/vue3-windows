@@ -218,6 +218,16 @@ const StandaloneHost = defineComponent({
   `,
 })
 
+const AutoHeightContent = defineComponent({
+  name: 'AutoHeightContent',
+  setup: () => () => h('div', { class: 'auto-height-content' }, 'auto height content'),
+})
+
+const TallAutoHeightContent = defineComponent({
+  name: 'TallAutoHeightContent',
+  setup: () => () => h('div', { class: 'tall-auto-height-content' }, 'tall auto height content'),
+})
+
 const VisibilityToggleHost = defineComponent({
   name: 'VisibilityToggleHost',
   components: {
@@ -406,6 +416,63 @@ describe('useWindows', () => {
       expect(panel).toBeDefined()
       expect(panel?.style.width).toBe('720px')
       expect(panel?.style.height).toBe('360px')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('lets the browser size window height when height is not specified', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'auto-height',
+        title: 'Auto Height',
+        component: AutoHeightContent,
+      })
+
+      await nextTick()
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Auto Height')
+      expect(panel).toBeDefined()
+      expect(panel?.style.height).toBe('')
+      expect(panel?.style.maxHeight).toBe(`${window.innerHeight - 32}px`)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('caps auto height with maxHeight without setting a fixed height', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'capped-auto-height',
+        title: 'Capped Auto Height',
+        maxHeight: 300,
+        component: TallAutoHeightContent,
+      })
+
+      await nextTick()
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Capped Auto Height')
+      expect(panel).toBeDefined()
+      expect(panel?.style.height).toBe('')
+      expect(panel?.style.maxHeight).toBe('300px')
     } finally {
       wrapper.unmount()
     }

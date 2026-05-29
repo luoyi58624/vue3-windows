@@ -232,9 +232,7 @@ const props = withDefaults(
     animated: true,
     outsideClickBehavior: 'none',
     minWidth: 360,
-    minHeight: 240,
     maxWidth: Number.POSITIVE_INFINITY,
-    maxHeight: Number.POSITIVE_INFINITY,
     modal: false,
     draggable: true,
     minimizable: true,
@@ -278,6 +276,7 @@ const isWindowAnimating = ref(false)
 const renderedWindowState = ref<WindowState>('normal')
 const hasInitialized = ref(false)
 const hasRegisteredOpen = ref(false)
+const hasManualHeight = ref(false)
 const isActiveWindow = ref(false)
 const panelTarget = shallowRef<string | HTMLElement>('body')
 const dockTarget = shallowRef<string | HTMLElement>('body')
@@ -315,6 +314,8 @@ let windowTransitionFrame = 0
 let windowTransitionVersion = 0
 let minimizeTransitionPending = false
 
+const isAutoHeightWindow = computed(() => props.height === undefined && !hasManualHeight.value)
+
 const shouldRenderPanel = computed(
   () => (
     visible.value && (windowState.value !== 'minimized' || isWindowAnimating.value)
@@ -328,6 +329,7 @@ const dialogClass = computed(() => [
     'window-dialog--animating': isWindowAnimating.value,
     'window-dialog--dragging': isDragging.value,
     'window-dialog--active': isActiveWindow.value,
+    'window-dialog--auto-height': isAutoHeightWindow.value,
   },
 ])
 
@@ -389,15 +391,27 @@ const panelStyle = computed(() => {
     }
   }
 
-  return {
+  const viewport = getViewport()
+  const limits = getSizeLimits(viewport)
+  const style: Record<string, string> = {
     ...accentVars.value,
     ...motionVars,
     left: `${windowRect.left}px`,
     top: `${windowRect.top}px`,
     width: `${windowRect.width}px`,
-    height: `${windowRect.height}px`,
+    maxHeight: `${limits.maxHeight}px`,
     zIndex: String(zIndex.value + 1),
   }
+
+  if (limits.minHeight > 0) {
+    style.minHeight = `${limits.minHeight}px`
+  }
+
+  if (!isAutoHeightWindow.value) {
+    style.height = `${windowRect.height}px`
+  }
+
+  return style
 })
 
 const dialogLabel = computed(() => props.title || 'Dialog')
@@ -464,7 +478,6 @@ watch(
       })
       return
     }
-
     stopPointerTracking()
     emit('close')
     if (windowState.value === 'minimized') {
@@ -592,7 +605,7 @@ function createInitialRect(): WindowRect {
   const viewport = getViewport()
   const limits = getSizeLimits(viewport)
   const width = clampValue(props.width ?? WINDOW_DEFAULT_WIDTH, limits.minWidth, limits.maxWidth)
-  const height = clampValue(props.height ?? WINDOW_DEFAULT_HEIGHT, limits.minHeight, limits.maxHeight)
+  const height = resolveInitialHeight(limits)
   const centeredRect = clampRect({
     width,
     height,
@@ -633,6 +646,14 @@ function createInitialRect(): WindowRect {
   })
 }
 
+function resolveInitialHeight(limits: ReturnType<typeof getSizeLimits>) {
+  if (isAutoHeightWindow.value) {
+    return Math.min(WINDOW_DEFAULT_HEIGHT, limits.maxHeight)
+  }
+
+  return clampValue(props.height ?? WINDOW_DEFAULT_HEIGHT, limits.minHeight, limits.maxHeight)
+}
+
 function startDrag(event: MouseEvent) {
   if (!props.draggable || windowState.value === 'minimized' || isWindowAnimating.value) {
     return
@@ -659,11 +680,13 @@ function startDrag(event: MouseEvent) {
 }
 
 function startDragFromMaximized(event: MouseEvent) {
+  hasManualHeight.value = true
   const startX = event.clientX
   const startY = event.clientY
   const maximizedRect = getMaximizedRect()
+  const limits = getSizeLimits(getViewport())
   const restoreWidth = clampValue(windowRect.width, props.minWidth, maximizedRect.width)
-  const restoreHeight = clampValue(windowRect.height, props.minHeight, maximizedRect.height)
+  const restoreHeight = clampValue(windowRect.height, limits.minHeight, maximizedRect.height)
   const pointerOffsetX = getMaximizedRestorePointerOffsetX(startX - maximizedRect.left, maximizedRect.width, restoreWidth)
   const pointerOffsetY = clampValue(startY - maximizedRect.top, 12, HEADER_VISIBLE_HEIGHT - 8)
   let hasRestored = false
@@ -866,6 +889,10 @@ function restoreWindow() {
 function startResize(direction: ResizeDirection, event: MouseEvent) {
   if (windowState.value !== 'normal') {
     return
+  }
+
+  if (direction.includes('n') || direction.includes('s')) {
+    hasManualHeight.value = true
   }
 
   bringToFront()
@@ -1543,10 +1570,10 @@ function getViewport() {
 function getSizeLimits(viewport: { width: number; height: number }) {
   const viewportMaxWidth = Math.max(280, viewport.width - VIEWPORT_MARGIN * 2)
   const viewportMaxHeight = Math.max(200, viewport.height - VIEWPORT_MARGIN * 2)
-  const maxWidth = Math.min(props.maxWidth, viewportMaxWidth)
-  const maxHeight = Math.min(props.maxHeight, viewportMaxHeight)
+  const maxWidth = Math.min(props.maxWidth ?? Number.POSITIVE_INFINITY, viewportMaxWidth)
+  const maxHeight = Math.min(props.maxHeight ?? Number.POSITIVE_INFINITY, viewportMaxHeight)
   const minWidth = clampValue(props.minWidth, 0, maxWidth)
-  const minHeight = clampValue(props.minHeight, 0, maxHeight)
+  const minHeight = clampValue(props.minHeight ?? getDefaultMinHeight(), 0, maxHeight)
 
   return {
     minWidth,
@@ -1554,6 +1581,10 @@ function getSizeLimits(viewport: { width: number; height: number }) {
     maxWidth,
     maxHeight,
   }
+}
+
+function getDefaultMinHeight() {
+  return isAutoHeightWindow.value ? 0 : 240
 }
 
 function clampValue(value: number, min: number, max: number) {
@@ -1880,7 +1911,8 @@ defineExpose({
 }
 
 :global(.window-dialog__body) {
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 20px 24px;
   overflow: auto;
   background: var(--window-dialog-surface);
