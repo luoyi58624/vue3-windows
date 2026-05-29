@@ -13,6 +13,8 @@ function resetWindowRuntime() {
   delete (globalThis as Record<string, unknown>)[RUNTIME_KEY]
   window.localStorage.removeItem(RECT_KEY)
   document.body.innerHTML = ''
+  document.documentElement.style.overflow = ''
+  document.body.style.overflow = ''
 }
 
 function wait(ms: number) {
@@ -865,6 +867,9 @@ describe('useWindows', () => {
   })
 
   it('maximizes to the configured maximize target', async () => {
+    document.documentElement.style.overflow = 'auto'
+    document.body.style.overflow = 'scroll'
+
     const wrapper = mount(MaximizeAnchorHost, {
       attachTo: document.body,
     })
@@ -900,6 +905,42 @@ describe('useWindows', () => {
       expect(panel?.style.top).toBe('50px')
       expect(panel?.style.width).toBe('640px')
       expect(panel?.style.height).toBe('360px')
+      expect(document.documentElement.style.overflow).toBe('auto')
+      expect(document.body.style.overflow).toBe('scroll')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('locks document scrolling while a window is maximized to the viewport', async () => {
+    document.documentElement.style.overflow = 'auto'
+    document.body.style.overflow = 'scroll'
+
+    const wrapper = mount(NoAnimationHost, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      await wrapper.get('.open-window').trigger('click')
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.setState('no-animation', 'maximized')
+      await nextTick()
+      await nextTick()
+
+      expect(document.documentElement.style.overflow).toBe('hidden')
+      expect(document.body.style.overflow).toBe('hidden')
+
+      wrapper.vm.windows?.setState('no-animation', 'normal')
+      await nextTick()
+      await nextTick()
+
+      expect(document.documentElement.style.overflow).toBe('auto')
+      expect(document.body.style.overflow).toBe('scroll')
     } finally {
       wrapper.unmount()
     }

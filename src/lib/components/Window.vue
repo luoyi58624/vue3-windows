@@ -134,6 +134,9 @@ type WindowRuntimeState = {
   activeWindowId: symbol | null
   activeWindowState: WindowState | null
   zIndexSeed: number
+  documentScrollLockWindowIds: Set<symbol>
+  documentElementOverflow: string | null
+  bodyOverflow: string | null
 }
 
 type WindowActiveEventDetail = {
@@ -450,6 +453,14 @@ watch(
 )
 
 watch(
+  () => [visible.value, windowState.value, maximizeTarget.value] as const,
+  () => {
+    syncDocumentScrollLock()
+  },
+  { immediate: true },
+)
+
+watch(
   visible,
   (show, wasShown) => {
     if (show) {
@@ -543,6 +554,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopPointerTracking()
   disableEscapeClose()
+  releaseDocumentScrollLock()
   unregisterOpenWindow()
   clearWindowTransition()
   window.removeEventListener(WINDOW_ACTIVE_EVENT, handleActiveWindowChange)
@@ -1014,6 +1026,48 @@ function enableEscapeClose() {
 
 function disableEscapeClose() {
   cleanupEscapeTracking?.()
+}
+
+function syncDocumentScrollLock() {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  const runtimeState = getWindowRuntimeState()
+  const shouldLock = visible.value && windowState.value === 'maximized' && !maximizeTarget.value
+
+  if (shouldLock) {
+    if (runtimeState.documentScrollLockWindowIds.size === 0) {
+      runtimeState.documentElementOverflow = document.documentElement.style.overflow
+      runtimeState.bodyOverflow = document.body.style.overflow
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    }
+    runtimeState.documentScrollLockWindowIds.add(instanceId)
+    return
+  }
+
+  releaseDocumentScrollLock()
+}
+
+function releaseDocumentScrollLock() {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  const runtimeState = getWindowRuntimeState()
+  if (!runtimeState.documentScrollLockWindowIds.delete(instanceId)) {
+    return
+  }
+
+  if (runtimeState.documentScrollLockWindowIds.size > 0) {
+    return
+  }
+
+  document.documentElement.style.overflow = runtimeState.documentElementOverflow ?? ''
+  document.body.style.overflow = runtimeState.bodyOverflow ?? ''
+  runtimeState.documentElementOverflow = null
+  runtimeState.bodyOverflow = null
 }
 
 function closeOnPressEscapeActive() {
@@ -1550,7 +1604,11 @@ function getWindowRuntimeState(): WindowRuntimeState {
   const globalState = globalThis as typeof globalThis & Record<string, unknown>
   const existingState = globalState[WINDOW_RUNTIME_KEY]
   if (existingState && typeof existingState === 'object') {
-    return existingState as WindowRuntimeState
+    const runtimeState = existingState as WindowRuntimeState
+    runtimeState.documentScrollLockWindowIds ??= new Set<symbol>()
+    runtimeState.documentElementOverflow ??= null
+    runtimeState.bodyOverflow ??= null
+    return runtimeState
   }
 
   const initialState: WindowRuntimeState = {
@@ -1560,6 +1618,9 @@ function getWindowRuntimeState(): WindowRuntimeState {
     activeWindowId: null,
     activeWindowState: null,
     zIndexSeed: 2100,
+    documentScrollLockWindowIds: new Set<symbol>(),
+    documentElementOverflow: null,
+    bodyOverflow: null,
   }
   globalState[WINDOW_RUNTIME_KEY] = initialState
   return initialState
