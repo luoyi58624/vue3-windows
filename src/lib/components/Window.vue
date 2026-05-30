@@ -4,13 +4,14 @@
   <Teleport :to="panelTarget">
     <div class="window-dialog-layer" :style="layerStyle">
       <div
-        v-if="modal"
+        v-if="modal && state !== 'minimized'"
         class="window-dialog-overlay"
         :class="{ 'is-clickable': outsideClickBehavior !== 'none' || closeOnClickModal }"
         @click="handleOverlayClick"
       />
 
       <section
+        v-show="state !== 'minimized'"
         ref="panelRef"
         class="window-dialog"
         :class="dialogClass"
@@ -114,6 +115,7 @@ import type { AccentType, WindowGeometry, WindowId, WindowOutsideClickBehavior, 
 
 type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 type WindowRect = WindowGeometry
+type WindowPosition = Pick<WindowGeometry, 'left' | 'top'>
 type WindowSizeLimits = {
   minWidth: number
   minHeight: number
@@ -121,7 +123,6 @@ type WindowSizeLimits = {
   maxHeight: number
 }
 type WindowRuntimeState = {
-  activeRect: WindowRect | null
   activeWindowId: symbol | null
   zIndexSeed: number
   documentScrollLockWindowIds: Set<symbol>
@@ -196,6 +197,7 @@ const props = withDefaults(
     bgColor?: string
     windowId?: WindowId
     initialRect?: WindowGeometry
+    lastPosition?: WindowPosition
   }>(),
   {
     title: '',
@@ -388,8 +390,10 @@ onMounted(() => {
   document.addEventListener('pointerdown', handleDocumentPointerDown, true)
   window.addEventListener('resize', handleViewportResize)
   syncDocumentScrollLock()
-  bringToFront()
-  focusPanelOnNextTick()
+  if (state.value !== 'minimized') {
+    bringToFront()
+    focusPanelOnNextTick()
+  }
   scheduleGeometryChange()
 })
 
@@ -421,11 +425,10 @@ function createInitialRect() {
   const limits = getSizeLimits(viewport)
   const width = clampValue(props.width ?? WINDOW_DEFAULT_WIDTH, limits.minWidth, limits.maxWidth)
   const height = clampValue(props.height ?? WINDOW_DEFAULT_HEIGHT, limits.minHeight, limits.maxHeight)
-  const runtimeState = getWindowRuntimeState()
-  const candidate = runtimeState.activeRect
+  const candidate = props.lastPosition
     ? {
-        left: runtimeState.activeRect.left + WINDOW_OPEN_OFFSET,
-        top: runtimeState.activeRect.top + WINDOW_OPEN_OFFSET,
+        left: props.lastPosition.left + WINDOW_OPEN_OFFSET,
+        top: props.lastPosition.top + WINDOW_OPEN_OFFSET,
         width,
         height,
       }
@@ -447,9 +450,6 @@ function bringToFront() {
 function syncActiveWindowRuntime() {
   const runtimeState = getWindowRuntimeState()
   runtimeState.activeWindowId = instanceId
-  if (state.value === 'normal') {
-    runtimeState.activeRect = { ...windowRect }
-  }
 
   isActiveWindow.value = true
   window.dispatchEvent(new CustomEvent(WINDOW_ACTIVE_EVENT, {
@@ -999,11 +999,6 @@ function applyRect(nextRect: WindowRect, options: { limits?: WindowSizeLimits } 
   windowRect.width = clampedRect.width
   windowRect.height = clampedRect.height
 
-  const runtimeState = getWindowRuntimeState()
-  if (runtimeState.activeWindowId === instanceId && state.value === 'normal') {
-    runtimeState.activeRect = { ...clampedRect }
-  }
-
   scheduleGeometryChange()
 }
 
@@ -1071,7 +1066,6 @@ function getWindowRuntimeState(): WindowRuntimeState {
   }
 
   runtimeHost[RUNTIME_KEY] ??= {
-    activeRect: null,
     activeWindowId: null,
     zIndexSeed: 2000,
     documentScrollLockWindowIds: new Set<symbol>(),

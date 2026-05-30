@@ -8,10 +8,22 @@ type WindowExpose = ComponentPublicInstance & {
   moveTop: () => void
 }
 type RestorableWindowState = Exclude<WindowState, 'minimized'>
+type WindowPosition = Pick<WindowGeometry, 'left' | 'top'>
+type WindowGeometryState = {
+  last_position: WindowPosition | null
+  windows_record: Map<string, WindowGeometry>
+}
+type PersistedWindowGeometryState = {
+  last_position?: WindowPosition | null
+  windows_record?: Record<string, WindowGeometry>
+}
+
+const WINDOW_GEOMETRY_STORAGE_KEY = 'vue3-windows:geometry'
 
 export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[]>([])) {
   const windowRefs = new Map<WindowId, WindowExpose>()
   const restoreStates = new Map<WindowId, RestorableWindowState>()
+  const geometryState = createGeometryState()
   let nextWindowId = 1
 
   const api: WindowsRef = {
@@ -37,23 +49,25 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
 
   function create(options: WindowOptions = {}) {
     const hasExplicitId = options.id !== undefined
-    const id = options.id ?? createWindowId()
+    const id = normalizeWindowId(options.id ?? createWindowId())
     const existing = hasExplicitId ? get(id) : undefined
+    const component = resolveWindowComponent(id, options.component)
 
     if (existing) {
+      const previousState = existing.state
       const nextPatch: Partial<WindowRecord> = {
         ...options,
         id,
-        state: options.state ?? 'normal',
+        state: options.state ?? getCreateTargetState(existing),
       }
-      if (options.component) {
-        nextPatch.component = markRaw(options.component)
+      if (component) {
+        nextPatch.component = markRaw(component)
       }
       if (!options.title) {
         delete nextPatch.title
       }
       Object.assign(existing, nextPatch)
-      syncRestoreState(id, existing.state)
+      syncRestoreState(id, existing.state, previousState)
       if (existing.state !== 'minimized') {
         moveTopOnNextTick(id)
       }
@@ -63,9 +77,9 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     const windowRecord: WindowRecord = {
       ...options,
       id,
-      title: options.title ?? String(id),
+      title: options.title ?? getDefaultWindowTitle(id, component),
       state: options.state ?? 'normal',
-      component: options.component ? markRaw(options.component) : options.component,
+      component: component ? markRaw(component) : component,
     }
 
     model.value = [...model.value, windowRecord]
@@ -124,7 +138,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
   }
 
   function get(id: WindowId) {
-    return model.value.find((windowRecord) => windowRecord.id === id)
+    return model.value.find((windowRecord) => windowRecord.id === normalizeWindowId(id))
   }
 
   function update(id: WindowId, patch: Partial<WindowOptions>) {
@@ -147,7 +161,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
         return
       }
 
-      updateWindowState(id, 'normal')
+      updateWindowState(id, getNormalStateTarget(target))
       moveTopOnNextTick(id)
       return
     }
@@ -203,6 +217,10 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
       return
     }
 
+    if (target.state !== 'normal') {
+      return
+    }
+
     const currentRect = target.rect
     if (
       currentRect
@@ -211,16 +229,40 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
       && currentRect.width === rect.width
       && currentRect.height === rect.height
     ) {
+      syncGeometryState(id, rect)
       return
     }
 
     target.rect = { ...rect }
+    syncGeometryState(id, rect)
+  }
+
+  function getLastWindowPosition() {
+    return geometryState.last_position ? { ...geometryState.last_position } : undefined
+  }
+
+  function getCachedWindowGeometry(id: WindowId) {
+    const storageId = getStorageWindowId(id)
+    const rect = storageId ? geometryState.windows_record.get(storageId) : undefined
+    return rect ? { ...rect } : undefined
   }
 
   function handleClosed(id: WindowRecord['id']) {
     restoreStates.delete(id)
     windowRefs.delete(id)
     model.value = model.value.filter((windowRecord) => windowRecord.id !== id)
+  }
+
+  function syncGeometryState(id: WindowRecord['id'], rect: WindowGeometry) {
+    geometryState.last_position = {
+      left: rect.left,
+      top: rect.top,
+    }
+    const storageId = getStorageWindowId(id)
+    if (storageId) {
+      geometryState.windows_record.set(storageId, { ...rect })
+    }
+    persistGeometryState()
   }
 
   function syncRestoreState(id: WindowRecord['id'], nextState: WindowState, previousState: WindowState = 'normal') {
@@ -232,12 +274,176 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     restoreStates.set(id, nextState)
   }
 
+  function getCreateTargetState(windowRecord: WindowRecord) {
+    if (windowRecord.state === 'minimized') {
+      return restoreStates.get(windowRecord.id) ?? 'normal'
+    }
+
+    return windowRecord.state
+  }
+
+  function getNormalStateTarget(windowRecord: WindowRecord) {
+    if (windowRecord.state === 'minimized') {
+      return restoreStates.get(windowRecord.id) ?? 'normal'
+    }
+
+    return 'normal'
+  }
+
+  function normalizeWindowId(id: WindowId): WindowId {
+    if (isObjectWindowId(id)) {
+      return markRaw(id) as WindowId
+    }
+
+    return id
+  }
+
+  function getStorageWindowId(id: WindowId) {
+    const normalizedId = normalizeWindowId(id)
+    if (typeof normalizedId === 'string') {
+      return `string:${normalizedId}`
+    }
+
+    if (typeof normalizedId === 'number') {
+      return `number:${normalizedId}`
+    }
+
+    const componentName = getComponentName(normalizedId)
+    return componentName ? `component:${componentName}` : null
+  }
+
+  function isObjectWindowId(id: WindowId): id is Extract<WindowId, object> {
+    return (typeof id === 'object' && id !== null) || typeof id === 'function'
+  }
+
+  function resolveWindowComponent(id: WindowId, component: WindowOptions['component']) {
+    if (component) {
+      return component
+    }
+
+    return isObjectWindowId(id) ? id : undefined
+  }
+
+  function getDefaultWindowTitle(id: WindowId, component: WindowOptions['component']) {
+    if (typeof id === 'string' || typeof id === 'number') {
+      return String(id)
+    }
+
+    return getComponentName(id) ?? getComponentName(component) ?? 'Window'
+  }
+
+  function getComponentName(component: WindowOptions['component']) {
+    if (!component || typeof component === 'string') {
+      return null
+    }
+
+    const namedComponent = component as { name?: string, __name?: string }
+    return namedComponent.name ?? namedComponent.__name ?? null
+  }
+
+  function createGeometryState(): WindowGeometryState {
+    const state: WindowGeometryState = {
+      last_position: null,
+      windows_record: new Map(),
+    }
+    const persistedState = readGeometryState()
+    if (!persistedState) {
+      return state
+    }
+
+    if (isWindowPosition(persistedState.last_position)) {
+      state.last_position = { ...persistedState.last_position }
+    }
+
+    if (persistedState.windows_record && typeof persistedState.windows_record === 'object') {
+      for (const [id, rect] of Object.entries(persistedState.windows_record)) {
+        if (isWindowGeometry(rect)) {
+          state.windows_record.set(id, { ...rect })
+        }
+      }
+    }
+
+    return state
+  }
+
+  function readGeometryState(): PersistedWindowGeometryState | null {
+    const storage = getGeometryStorage()
+    if (!storage) {
+      return null
+    }
+
+    try {
+      const rawValue = storage.getItem(WINDOW_GEOMETRY_STORAGE_KEY)
+      if (!rawValue) {
+        return null
+      }
+
+      const value = JSON.parse(rawValue) as unknown
+      return value && typeof value === 'object' ? value as PersistedWindowGeometryState : null
+    } catch {
+      return null
+    }
+  }
+
+  function persistGeometryState() {
+    const storage = getGeometryStorage()
+    if (!storage) {
+      return
+    }
+
+    const windows_record: Record<string, WindowGeometry> = {}
+    for (const [id, rect] of geometryState.windows_record) {
+      windows_record[id] = { ...rect }
+    }
+
+    try {
+      storage.setItem(WINDOW_GEOMETRY_STORAGE_KEY, JSON.stringify({
+        last_position: geometryState.last_position,
+        windows_record,
+      }))
+    } catch {
+      // localStorage can be unavailable or full; the in-memory cache remains usable.
+    }
+  }
+
+  function getGeometryStorage() {
+    if (typeof window === 'undefined') {
+      return null
+    }
+
+    try {
+      return window.localStorage
+    } catch {
+      return null
+    }
+  }
+
+  function isWindowPosition(value: unknown): value is WindowPosition {
+    if (!value || typeof value !== 'object') {
+      return false
+    }
+
+    const position = value as WindowPosition
+    return Number.isFinite(position.left) && Number.isFinite(position.top)
+  }
+
+  function isWindowGeometry(value: unknown): value is WindowGeometry {
+    if (!isWindowPosition(value)) {
+      return false
+    }
+
+    const rect = value as WindowGeometry
+    return Number.isFinite(rect.width) && Number.isFinite(rect.height)
+  }
+
   return {
     model,
     api,
     setWindowRef,
     updateWindowState,
     updateWindowGeometry,
+    getLastWindowPosition,
+    getCachedWindowGeometry,
     handleOutsideClick,
     handleClosed,
   }

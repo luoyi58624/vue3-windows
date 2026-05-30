@@ -24,6 +24,15 @@ function createWindow() {
   })
 }
 
+function createFixedWindow() {
+  windows.create({
+    id: 'dev-fixed-window',
+    title: `${titlePrefix.value} 固定`,
+    component: PlaygroundWindowContent,
+    note: seedNote.value,
+  })
+}
+
 function minimizeAll() {
   for (const windowRecord of windows.windows.value) {
     windows.minimize(windowRecord.id)
@@ -48,6 +57,7 @@ function restoreAll() {
 
       <div class="dev-test-page__actions">
         <button type="button" @click="createWindow">新建窗口</button>
+        <button type="button" @click="createFixedWindow">固定 id 窗口</button>
         <button type="button" @click="minimizeAll">全部最小化</button>
         <button type="button" @click="restoreAll">全部还原</button>
         <button type="button" class="is-danger" @click="windows.closeAll()">全部关闭</button>

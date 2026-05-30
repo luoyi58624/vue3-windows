@@ -14,6 +14,7 @@ import { getWindowSetupConfig } from './setupWindows'
 import { createAppContextWithOwnerContext, type WindowOwnerContext } from './windowOwnerContext'
 
 type WindowsManager = ReturnType<typeof useWindowsManager>
+const renderKeyByWindowId = new WeakMap<object, symbol>()
 
 export interface WindowsRendererOptions extends UseWindowsOptions {
   appContext?: AppContext | null
@@ -40,12 +41,19 @@ export function mountWindowsRenderer(
     name: 'WindowsControllerRenderer',
     setup() {
       return () => manager.model.value
-        .filter((windowRecord) => windowRecord.state !== 'minimized')
         .map((windowRecord) => {
           const globalOptions = getWindowSetupConfig()
           const outsideClickBehavior = windowRecord.outsideClickBehavior ?? options.outsideClickBehavior ?? globalOptions.outsideClickBehavior
-          const width = windowRecord.width ?? options.width ?? globalOptions.width
-          const height = windowRecord.height ?? options.height ?? globalOptions.height
+          const cachedGeometry = manager.getCachedWindowGeometry(windowRecord.id)
+          const width = windowRecord.width ?? cachedGeometry?.width ?? options.width ?? globalOptions.width
+          const height = windowRecord.height ?? cachedGeometry?.height ?? options.height ?? globalOptions.height
+          const initialRect = windowRecord.rect ?? (cachedGeometry
+            ? {
+                ...cachedGeometry,
+                width: windowRecord.width ?? cachedGeometry.width,
+                height: windowRecord.height ?? cachedGeometry.height,
+              }
+            : undefined)
           const minWidth = windowRecord.minWidth ?? options.minWidth ?? globalOptions.minWidth
           const minHeight = windowRecord.minHeight ?? options.minHeight ?? globalOptions.minHeight
           const maxWidth = windowRecord.maxWidth ?? options.maxWidth ?? globalOptions.maxWidth
@@ -57,12 +65,13 @@ export function mountWindowsRenderer(
           const bgColor = windowRecord.bgColor ?? options.bgColor ?? globalOptions.bgColor
 
           return h(Window, {
-            key: windowRecord.id,
+            key: getWindowRenderKey(windowRecord.id),
             ref: (instance: Element | ComponentPublicInstance | null) => manager.setWindowRef(windowRecord.id, instance),
             state: windowRecord.state,
             title: windowRecord.title,
             windowId: windowRecord.id,
-            initialRect: windowRecord.rect,
+            initialRect,
+            lastPosition: manager.getLastWindowPosition(),
             outsideClickBehavior,
             width,
             height,
@@ -113,4 +122,19 @@ export function mountWindowsRenderer(
       return renderRoot.isConnected
     },
   }
+}
+
+function getWindowRenderKey(id: WindowsManager['model']['value'][number]['id']) {
+  if (typeof id === 'string' || typeof id === 'number') {
+    return id
+  }
+
+  const objectId = id as object
+  let renderKey = renderKeyByWindowId.get(objectId)
+  if (!renderKey) {
+    renderKey = Symbol('vue3-windows-window')
+    renderKeyByWindowId.set(objectId, renderKey)
+  }
+
+  return renderKey
 }

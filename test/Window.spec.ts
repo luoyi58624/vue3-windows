@@ -29,6 +29,7 @@ function resetWindowRuntime() {
   document.body.innerHTML = ''
   document.documentElement.style.overflow = ''
   document.body.style.overflow = ''
+  window.localStorage.removeItem('vue3-windows:geometry')
   windowSetup(configReset)
 }
 
@@ -136,6 +137,46 @@ describe('useWindows rendering', () => {
     expect(panel?.querySelector('[aria-label="关闭"]')).not.toBeNull()
     expect(panel?.querySelector('[aria-label="最小化"]')).toBeNull()
     expect(panel?.querySelector('[aria-label="最大化"]')).toBeNull()
+  })
+
+  it('allows a window component to be used as the window id', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    const first = windows?.create({
+      id: BasicContent,
+      title: 'Component Singleton',
+    })
+    await flushWindows()
+
+    expect(first?.id).toBe(BasicContent)
+    expect(first?.component).toBe(BasicContent)
+    expect(windows?.get(BasicContent)?.title).toBe('Component Singleton')
+    expect(findPanelByText('Priority content')).toBeDefined()
+
+    const second = windows?.create({
+      id: BasicContent,
+      title: 'Component Singleton Updated',
+    })
+    await flushWindows()
+
+    expect(second?.id).toBe(BasicContent)
+    expect(second?.component).toBe(BasicContent)
+    expect(windows?.windows.value).toHaveLength(1)
+    expect(windows?.get(BasicContent)?.title).toBe('Component Singleton Updated')
+
+    windows?.close(BasicContent)
+    await flushWindows()
+
+    expect(windows?.get(BasicContent)).toBeUndefined()
+    expect(windows?.windows.value).toHaveLength(0)
   })
 
   it('keeps Vue provide and inject available inside created window content', async () => {

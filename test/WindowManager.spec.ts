@@ -27,12 +27,13 @@ function resetWindowRuntime() {
   document.body.innerHTML = ''
   document.documentElement.style.overflow = ''
   document.body.style.overflow = ''
+  window.localStorage.removeItem('vue3-windows:geometry')
   windowSetup(configReset)
 }
 
 function findPanelByText(text: string) {
   return Array.from(document.body.querySelectorAll('.window-dialog')).find((panel) =>
-    panel.textContent?.includes(text),
+    panel.textContent?.includes(text) && (panel as HTMLElement).style.display !== 'none',
   ) as HTMLElement | undefined
 }
 
@@ -61,6 +62,20 @@ const ActionWindow = defineComponent({
   },
 })
 
+let scrollWindowMounts = 0
+const ScrollWindow = defineComponent({
+  name: 'ScrollWindow',
+  setup() {
+    scrollWindowMounts += 1
+
+    return () =>
+      h('div', { class: 'scroll-window' }, [
+        h('p', 'Scroll State'),
+        h('div', { style: 'height: 1200px;' }, 'Scrollable content'),
+      ])
+  },
+})
+
 const BindWindows = defineComponent({
   name: 'BindWindows',
   props: {
@@ -80,6 +95,7 @@ const BindWindows = defineComponent({
 describe('window manager state', () => {
   beforeEach(() => {
     resetWindowRuntime()
+    scrollWindowMounts = 0
   })
 
   it('minimizes without closing and restores through moveTop', async () => {
@@ -108,12 +124,57 @@ describe('window manager state', () => {
     expect(windows?.get('alpha')?.state).toBe('minimized')
     expect(windows?.windows.value).toHaveLength(1)
     expect(findPanelByText('Alpha')).toBeUndefined()
+    expect(document.body.textContent).toContain('Alpha')
 
     windows?.moveTop('alpha')
     await flushWindows()
 
     expect(windows?.get('alpha')?.state).toBe('normal')
     expect(findPanelByText('Alpha')).toBeDefined()
+  })
+
+  it('keeps minimized window content mounted and preserves scroll position when reopened', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'scroll-state',
+      title: 'Scroll State',
+      component: ScrollWindow,
+      height: 320,
+    })
+    await flushWindows()
+
+    const body = document.body.querySelector<HTMLElement>('.window-dialog__body')
+    expect(body).not.toBeNull()
+    body!.scrollTop = 180
+    expect(scrollWindowMounts).toBe(1)
+
+    windows?.minimize('scroll-state')
+    await flushWindows()
+
+    expect(findPanelByText('Scroll State')).toBeUndefined()
+    expect(body?.isConnected).toBe(true)
+
+    windows?.create({
+      id: 'scroll-state',
+      title: 'Scroll State',
+      component: ScrollWindow,
+    })
+    await flushWindows()
+
+    const reopenedBody = document.body.querySelector<HTMLElement>('.window-dialog__body')
+    expect(reopenedBody).toBe(body)
+    expect(reopenedBody?.scrollTop).toBe(180)
+    expect(scrollWindowMounts).toBe(1)
+    expect(findPanelByText('Scroll State')).toBeDefined()
   })
 
   it('restores a maximized window back to maximized after minimize', async () => {
@@ -146,6 +207,289 @@ describe('window manager state', () => {
 
     expect(windows?.get('max')?.state).toBe('maximized')
     expect(findPanelByText('Max')?.classList.contains('window-dialog--maximized')).toBe(true)
+  })
+
+  it('restores minimized windows through setState normal to their previous normal or maximized state', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'restore-normal',
+      title: 'Restore Normal',
+      component: ActionWindow,
+    })
+    windows?.create({
+      id: 'restore-max',
+      title: 'Restore Max',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    windows?.minimize('restore-normal')
+    windows?.setState('restore-max', 'maximized')
+    await flushWindows()
+    windows?.minimize('restore-max')
+    await flushWindows()
+
+    expect(windows?.get('restore-normal')?.state).toBe('minimized')
+    expect(windows?.get('restore-max')?.state).toBe('minimized')
+
+    windows?.setState('restore-normal', 'normal')
+    windows?.setState('restore-max', 'normal')
+    await flushWindows()
+
+    expect(windows?.get('restore-normal')?.state).toBe('normal')
+    expect(windows?.get('restore-max')?.state).toBe('maximized')
+    expect(findPanelByText('Restore Max')?.classList.contains('window-dialog--maximized')).toBe(true)
+  })
+
+  it('keeps the normal rect through maximize minimize maximize restore', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'restore-size',
+      title: 'Restore Size',
+      component: ActionWindow,
+      width: 520,
+      height: 330,
+    })
+    await flushWindows()
+
+    const normalRect = { ...windows!.get('restore-size')!.rect! }
+
+    windows?.setState('restore-size', 'maximized')
+    await flushWindows()
+    windows?.minimize('restore-size')
+    await flushWindows()
+    windows?.moveTop('restore-size')
+    await flushWindows()
+    expect(windows?.get('restore-size')?.state).toBe('maximized')
+
+    windows?.setState('restore-size', 'normal')
+    await flushWindows()
+
+    expect(windows?.get('restore-size')?.state).toBe('normal')
+    expect(windows?.get('restore-size')?.rect).toEqual(normalRect)
+  })
+
+  it('opens a new window from the last normal window position', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'first-position',
+      title: 'First Position',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    const firstRect = { ...windows!.get('first-position')!.rect! }
+
+    windows?.create({
+      id: 'second-position',
+      title: 'Second Position',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    const secondRect = windows?.get('second-position')?.rect
+    expect(secondRect?.left).toBe(firstRect.left + 28)
+    expect(secondRect?.top).toBe(firstRect.top + 28)
+  })
+
+  it('reopens the same id with its cached normal rect unless create passes an explicit size', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+        options: {
+          width: 640,
+          height: 420,
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'cached-size',
+      title: 'Cached Size',
+      component: ActionWindow,
+      width: 520,
+      height: 330,
+    })
+    await flushWindows()
+
+    const firstRect = { ...windows!.get('cached-size')!.rect! }
+
+    windows?.close('cached-size')
+    await flushWindows()
+    windows?.create({
+      id: 'cached-size',
+      title: 'Cached Size Reopen',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    expect(windows?.get('cached-size')?.rect).toEqual(firstRect)
+
+    windows?.close('cached-size')
+    await flushWindows()
+    windows?.create({
+      id: 'cached-size',
+      title: 'Cached Size Explicit',
+      component: ActionWindow,
+      width: 600,
+      height: 360,
+    })
+    await flushWindows()
+
+    expect(windows?.get('cached-size')?.rect?.left).toBe(firstRect.left)
+    expect(windows?.get('cached-size')?.rect?.top).toBe(firstRect.top)
+    expect(windows?.get('cached-size')?.rect?.width).toBe(600)
+    expect(windows?.get('cached-size')?.rect?.height).toBe(360)
+  })
+
+  it('persists cached geometry in localStorage across managers', async () => {
+    let firstWindows: WindowsRef | null = null
+    const firstWrapper = mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          firstWindows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    firstWindows?.create({
+      id: 'persisted-window',
+      title: 'Persisted Window',
+      component: ActionWindow,
+      width: 520,
+      height: 330,
+    })
+    await flushWindows()
+
+    const firstRect = { ...firstWindows!.get('persisted-window')!.rect! }
+    firstWrapper.unmount()
+    await flushWindows()
+
+    expect(window.localStorage.getItem('vue3-windows:geometry')).toContain('string:persisted-window')
+
+    let secondWindows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          secondWindows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    secondWindows?.create({
+      id: 'persisted-window',
+      title: 'Persisted Window Reopen',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    expect(secondWindows?.get('persisted-window')?.rect).toEqual(firstRect)
+  })
+
+  it('reopens an existing minimized window through create with the same id', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'normal-reopen',
+      title: 'Normal Reopen',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    windows?.minimize('normal-reopen')
+    await flushWindows()
+    expect(windows?.get('normal-reopen')?.state).toBe('minimized')
+    expect(findPanelByText('Normal Reopen')).toBeUndefined()
+
+    windows?.create({
+      id: 'normal-reopen',
+      title: 'Normal Reopen Updated',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    expect(windows?.windows.value).toHaveLength(1)
+    expect(windows?.get('normal-reopen')?.state).toBe('normal')
+    expect(findPanelByText('Normal Reopen Updated')).toBeDefined()
+  })
+
+  it('reopens an existing minimized maximized window back to maximized through create', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'max-reopen',
+      title: 'Max Reopen',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    windows?.setState('max-reopen', 'maximized')
+    await flushWindows()
+    windows?.minimize('max-reopen')
+    await flushWindows()
+    expect(windows?.get('max-reopen')?.state).toBe('minimized')
+    expect(findPanelByText('Max Reopen')).toBeUndefined()
+
+    windows?.create({
+      id: 'max-reopen',
+      title: 'Max Reopen Updated',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    const panel = findPanelByText('Max Reopen Updated')
+    expect(windows?.windows.value).toHaveLength(1)
+    expect(windows?.get('max-reopen')?.state).toBe('maximized')
+    expect(panel?.classList.contains('window-dialog--maximized')).toBe(true)
   })
 
   it('restores a maximized window and keeps dragging from the title bar', async () => {
