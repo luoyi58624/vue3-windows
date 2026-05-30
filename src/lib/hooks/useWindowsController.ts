@@ -22,7 +22,7 @@ export function useWindowsController(
   const api: WindowsRef = {
     ...manager.api,
     create(options) {
-      return manager.api.create(withWindowOwnerContext(options, getOwnerContext()))
+      return manager.api.create(withWindowOwnerContext(options ?? {}, getOwnerContext()))
     },
   }
 

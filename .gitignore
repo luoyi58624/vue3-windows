@@ -3,3 +3,5 @@ dist
 *.local
 .DS_Store
 docs/.vitepress/cache
+examples/native/dist
+examples/native/.dev-server.*.log

@@ -4,9 +4,9 @@ import { useWindowsController } from './useWindowsController'
 
 export function useWindows(options: UseWindowsOptions = {}) {
   const { global: forceGlobal, ...controllerOptions } = options
-  const desktopWindows = useOptionalWindowsDesktopContext()?.windows
-  if (!forceGlobal && desktopWindows) {
-    return desktopWindows
+  const desktopManager = useOptionalWindowsDesktopContext()?.manager
+  if (!forceGlobal && desktopManager) {
+    return desktopManager
   }
 
   return useWindowsController(null, {

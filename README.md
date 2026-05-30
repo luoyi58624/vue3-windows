@@ -26,7 +26,6 @@ const DetailWindow = defineComponent({
 
 function openDetail() {
   windows.create({
-    id: 'detail',
     title: '详情',
     component: DetailWindow,
   })

@@ -149,12 +149,50 @@ describe('WindowsDesktop', () => {
       await nextTick()
 
       expect(findPanelByText('Desktop Window')).toBeDefined()
-      expect(wrapper.vm.desktopRef?.items).toHaveLength(1)
+      expect(wrapper.vm.desktopRef?.windows).toHaveLength(1)
       expect(wrapper.find('.dock-start').exists()).toBe(true)
       expect(wrapper.find('.dock-clock').exists()).toBe(true)
       expect(wrapper.find('.windows-dock-task').exists()).toBe(false)
     } finally {
       wrapper.unmount()
+    }
+  })
+
+  it('generates window ids per desktop instance when create omits id', async () => {
+    const firstWrapper = mount(DesktopHost, {
+      attachTo: document.body,
+    })
+    const secondWrapper = mount(DesktopHost, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      const firstWindow = firstWrapper.vm.desktopRef?.create({
+        title: 'Generated One',
+        component: DesktopWindowContent,
+      })
+      const secondWindow = firstWrapper.vm.desktopRef?.create({
+        title: 'Generated Two',
+        component: DesktopWindowContent,
+      })
+      const otherDesktopWindow = secondWrapper.vm.desktopRef?.create({
+        title: 'Other Generated One',
+        component: DesktopWindowContent,
+      })
+      await nextTick()
+      await nextTick()
+
+      expect(firstWindow?.id).toBe(1)
+      expect(secondWindow?.id).toBe(2)
+      expect(otherDesktopWindow?.id).toBe(1)
+      expect(firstWrapper.vm.desktopRef?.get(1)?.title).toBe('Generated One')
+      expect(secondWrapper.vm.desktopRef?.get(1)?.title).toBe('Other Generated One')
+    } finally {
+      firstWrapper.unmount()
+      secondWrapper.unmount()
     }
   })
 
@@ -214,7 +252,7 @@ describe('WindowsDesktop', () => {
       await nextTick()
 
       expect(findPanelByText('Desktop Window')).toBeUndefined()
-      expect(wrapper.vm.desktopRef?.items.every((item) => !item.visible)).toBe(true)
+      expect(wrapper.vm.desktopRef?.windows.every((windowRecord) => !windowRecord.visible)).toBe(true)
 
       wrapper.vm.desktopRef?.showAll()
       await nextTick()
@@ -222,7 +260,7 @@ describe('WindowsDesktop', () => {
       await nextTick()
 
       expect(findPanelByText('Desktop Window')).toBeDefined()
-      expect(wrapper.vm.desktopRef?.items.every((item) => item.visible)).toBe(true)
+      expect(wrapper.vm.desktopRef?.windows.every((windowRecord) => windowRecord.visible)).toBe(true)
     } finally {
       wrapper.unmount()
     }

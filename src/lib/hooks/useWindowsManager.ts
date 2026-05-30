@@ -1,7 +1,7 @@
 import { computed, markRaw, nextTick, ref, type Ref } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 
-import type { CreateWindowOptions, WindowId, WindowOutsideClickBehavior, WindowsItem, WindowsRef, WindowState } from '../types'
+import type { WindowGeometry, WindowId, WindowOptions, WindowOutsideClickBehavior, WindowRecord, WindowsRef, WindowState } from '../types'
 
 type ManagedWindowState = WindowState
 type WindowExpose = ComponentPublicInstance & {
@@ -11,21 +11,22 @@ type WindowExpose = ComponentPublicInstance & {
   restore: () => void
 }
 
-export function useWindowsManager(model: Ref<WindowsItem[]> = ref<WindowsItem[]>([])) {
-  const minimizedOrder = ref<WindowsItem['id'][]>([])
+export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[]>([])) {
+  const minimizedOrder = ref<WindowRecord['id'][]>([])
   const hiddenWindowIds = new Set<WindowId>()
   const windowRefs = new Map<WindowId, WindowExpose>()
+  let nextWindowId = 1
 
-  const visibleItems = computed(() => model.value.filter((item) => item.visible))
-  const visibleItemMap = computed(() => new Map(visibleItems.value.map((item) => [item.id, item])))
-  const minimizedItems = computed(() => {
+  const visibleWindows = computed(() => model.value.filter((windowRecord) => windowRecord.visible))
+  const visibleWindowMap = computed(() => new Map(visibleWindows.value.map((windowRecord) => [windowRecord.id, windowRecord])))
+  const minimizedWindows = computed(() => {
     return minimizedOrder.value
-      .map((id) => visibleItemMap.value.get(id))
-      .filter((item): item is WindowsItem => Boolean(item && item.state === 'minimized'))
+      .map((id) => visibleWindowMap.value.get(id))
+      .filter((windowRecord): windowRecord is WindowRecord => Boolean(windowRecord && windowRecord.state === 'minimized'))
   })
 
   const api: WindowsRef = {
-    items: model,
+    windows: model,
     create,
     close,
     closeAll,
@@ -40,9 +41,9 @@ export function useWindowsManager(model: Ref<WindowsItem[]> = ref<WindowsItem[]>
     setState,
   }
 
-  function getDockIndex(id: WindowsItem['id']) {
-    const item = visibleItemMap.value.get(id)
-    if (!item) {
+  function getDockIndex(id: WindowRecord['id']) {
+    const windowRecord = visibleWindowMap.value.get(id)
+    if (!windowRecord) {
       return 0
     }
 
@@ -59,12 +60,13 @@ export function useWindowsManager(model: Ref<WindowsItem[]> = ref<WindowsItem[]>
     windowRefs.set(id, instance as WindowExpose)
   }
 
-  function create(options: CreateWindowOptions) {
-    const id = options.id
-    const existing = get(id)
+  function create(options: WindowOptions = {}) {
+    const hasExplicitId = options.id !== undefined
+    const id = options.id ?? createWindowId()
+    const existing = hasExplicitId ? get(id) : undefined
 
     if (existing) {
-      const nextPatch: Partial<WindowsItem> = {
+      const nextPatch: Partial<WindowRecord> = {
         ...options,
         id,
         visible: options.visible ?? true,
@@ -82,18 +84,28 @@ export function useWindowsManager(model: Ref<WindowsItem[]> = ref<WindowsItem[]>
       return existing
     }
 
-  const item: WindowsItem = {
-    ...options,
-    id,
-    title: options.title ?? String(id),
-    visible: options.visible ?? true,
-    state: options.state ?? 'normal',
-    component: options.component ? markRaw(options.component) : options.component,
+    const windowRecord: WindowRecord = {
+      ...options,
+      id,
+      title: options.title ?? String(id),
+      visible: options.visible ?? true,
+      state: options.state ?? 'normal',
+      component: options.component ? markRaw(options.component) : options.component,
+    }
+
+    model.value = [...model.value, windowRecord]
+    moveTopOnNextTick(id)
+    return windowRecord
   }
 
-    model.value = [...model.value, item]
-    moveTopOnNextTick(id)
-    return item
+  function createWindowId() {
+    while (get(nextWindowId)) {
+      nextWindowId += 1
+    }
+
+    const id = nextWindowId
+    nextWindowId += 1
+    return id
   }
 
   function close(id: WindowId) {
@@ -126,8 +138,8 @@ export function useWindowsManager(model: Ref<WindowsItem[]> = ref<WindowsItem[]>
   }
 
   function hideAll() {
-    for (const item of model.value) {
-      hide(item.id)
+    for (const windowRecord of model.value) {
+      hide(windowRecord.id)
     }
   }
 
@@ -147,8 +159,8 @@ export function useWindowsManager(model: Ref<WindowsItem[]> = ref<WindowsItem[]>
   }
 
   function showAll() {
-    for (const item of model.value) {
-      show(item.id)
+    for (const windowRecord of model.value) {
+      show(windowRecord.id)
     }
   }
 
@@ -204,10 +216,10 @@ export function useWindowsManager(model: Ref<WindowsItem[]> = ref<WindowsItem[]>
   }
 
   function get(id: WindowId) {
-    return model.value.find((item) => item.id === id)
+    return model.value.find((windowRecord) => windowRecord.id === id)
   }
 
-  function update(id: WindowId, patch: Partial<WindowsItem>) {
+  function update(id: WindowId, patch: Partial<WindowOptions>) {
     const target = get(id)
     if (!target) {
       return
@@ -261,7 +273,7 @@ export function useWindowsManager(model: Ref<WindowsItem[]> = ref<WindowsItem[]>
     updateWindowState(id, state)
   }
 
-  function handleOutsideClick(id: WindowsItem['id'], behavior: WindowOutsideClickBehavior) {
+  function handleOutsideClick(id: WindowRecord['id'], behavior: WindowOutsideClickBehavior) {
     switch (behavior) {
       case 'hide':
         hide(id)
@@ -277,14 +289,14 @@ export function useWindowsManager(model: Ref<WindowsItem[]> = ref<WindowsItem[]>
     }
   }
 
-  function handleMinimizeStart(id: WindowsItem['id']) {
-    if (visibleItemMap.value.has(id)) {
+  function handleMinimizeStart(id: WindowRecord['id']) {
+    if (visibleWindowMap.value.has(id)) {
       queueMinimizedWindow(id)
     }
   }
 
-  function updateWindowState(id: WindowsItem['id'], state: ManagedWindowState) {
-    const target = model.value.find((item) => item.id === id)
+  function updateWindowState(id: WindowRecord['id'], state: ManagedWindowState) {
+    const target = model.value.find((windowRecord) => windowRecord.id === id)
     if (!target) {
       return
     }
@@ -299,8 +311,28 @@ export function useWindowsManager(model: Ref<WindowsItem[]> = ref<WindowsItem[]>
     removeMinimizedWindow(id)
   }
 
-  function handleVisibilityChange(id: WindowsItem['id'], visible: boolean) {
-    const target = model.value.find((item) => item.id === id)
+  function updateWindowGeometry(id: WindowRecord['id'], rect: WindowGeometry) {
+    const target = model.value.find((windowRecord) => windowRecord.id === id)
+    if (!target) {
+      return
+    }
+
+    const currentRect = target.rect
+    if (
+      currentRect
+      && currentRect.left === rect.left
+      && currentRect.top === rect.top
+      && currentRect.width === rect.width
+      && currentRect.height === rect.height
+    ) {
+      return
+    }
+
+    target.rect = { ...rect }
+  }
+
+  function handleVisibilityChange(id: WindowRecord['id'], visible: boolean) {
+    const target = model.value.find((windowRecord) => windowRecord.id === id)
     if (!target) {
       return
     }
@@ -313,7 +345,7 @@ export function useWindowsManager(model: Ref<WindowsItem[]> = ref<WindowsItem[]>
     handleClosed(id)
   }
 
-  function handleClosed(id: WindowsItem['id']) {
+  function handleClosed(id: WindowRecord['id']) {
     if (hiddenWindowIds.has(id)) {
       hiddenWindowIds.delete(id)
       return
@@ -321,26 +353,27 @@ export function useWindowsManager(model: Ref<WindowsItem[]> = ref<WindowsItem[]>
 
     removeMinimizedWindow(id)
     windowRefs.delete(id)
-    model.value = model.value.filter((item) => item.id !== id)
+    model.value = model.value.filter((windowRecord) => windowRecord.id !== id)
   }
 
-  function queueMinimizedWindow(id: WindowsItem['id']) {
-    minimizedOrder.value = [...minimizedOrder.value.filter((itemId) => itemId !== id), id]
+  function queueMinimizedWindow(id: WindowRecord['id']) {
+    minimizedOrder.value = [...minimizedOrder.value.filter((windowId) => windowId !== id), id]
   }
 
-  function removeMinimizedWindow(id: WindowsItem['id']) {
-    minimizedOrder.value = minimizedOrder.value.filter((itemId) => itemId !== id)
+  function removeMinimizedWindow(id: WindowRecord['id']) {
+    minimizedOrder.value = minimizedOrder.value.filter((windowId) => windowId !== id)
   }
 
   return {
     model,
-    visibleItems,
-    minimizedItems,
+    visibleWindows,
+    minimizedWindows,
     api,
     getDockIndex,
     setWindowRef,
     handleMinimizeStart,
     updateWindowState,
+    updateWindowGeometry,
     handleVisibilityChange,
     handleOutsideClick,
     handleClosed,

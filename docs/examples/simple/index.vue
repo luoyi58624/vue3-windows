@@ -1,6 +1,6 @@
 <template>
   <section class="simple-window-demo">
-    <button type="button" class="simple-window-demo__button" @click="windows.create({ id: 'count', component: Child })">
+    <button type="button" class="simple-window-demo__button" @click="windows.create({ title: '计数窗口', component: Child })">
       打开窗口
     </button>
     <Child/>

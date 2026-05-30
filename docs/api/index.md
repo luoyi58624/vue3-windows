@@ -40,9 +40,9 @@ Slots:
 | `default` | 桌面内容，例如图标、快捷入口。 |
 | `dock-left` | 默认 dock 的左侧内容。 |
 | `dock-right` | 默认 dock 的右侧内容。 |
-| `dock` | 完全替换 dock。slot props 包含 `windows`、`items`、`minimizedItems`、`setDockTarget`。自定义 dock 需要调用 `setDockTarget(element)` 注册最小化目标。 |
+| `dock` | 完全替换 dock。slot props 包含 `manager`、`windows`、`minimizedWindows`、`setDockTarget`。自定义 dock 需要调用 `setDockTarget(element)` 注册最小化目标。 |
 
-Ref 暴露 `WindowsRef` 的全部 API：`create`、`close`、`closeAll`、`hide`、`hideAll`、`show`、`showAll`、`minimize`、`moveTop`、`get`、`update`、`setState`、`items`。
+Ref 暴露 `WindowsRef` 的全部 API：`create`、`close`、`closeAll`、`hide`、`hideAll`、`show`、`showAll`、`minimize`、`moveTop`、`get`、`update`、`setState`、`windows`。
 
 ## `WindowsDock`
 
@@ -52,13 +52,13 @@ Ref 暴露 `WindowsRef` 的全部 API：`create`、`close`、`closeAll`、`hide`
 
 Win10 风格 dock 组件。它和 `WindowsDock` 一样通过 inject 获取窗口上下文，可以直接放在 `WindowsDesktop` 的 `dock` slot 中。
 
-`Win10Dock` 支持 `left`、`tasks`、`right` slots。`tasks` slot 提供 `windows`、`items`、`minimizedItems` 和 `TaskComponent`。
+`Win10Dock` 支持 `left`、`tasks`、`right` slots。`tasks` slot 提供 `manager`、`windows`、`minimizedWindows` 和 `TaskComponent`。
 
 ## `create(options)`
 
 | Option | Type | Description |
 | --- | --- | --- |
-| `id` | `string \| number` | 必填，窗口唯一标识。 |
+| `id` | `string \| number` | Optional. The current window manager generates an incrementing id when omitted. |
 | `title` | `string` | 窗口标题。 |
 | `component` | `Component` | 窗口内容组件。 |
 | `props` | `Record<string, unknown>` | 传给内容组件的 props。 |
@@ -76,3 +76,5 @@ Win10 风格 dock 组件。它和 `WindowsDock` 一样通过 inject 获取窗口
 在窗口内部组件里获取当前窗口上下文。
 
 可直接操作当前窗口的 `close`、`hide`、`show`、`minimize`、`maximize`、`restore`、`moveTop`、`setState` 和 `update`。
+
+当前窗口数据通过 `window` 读取，例如 `currentWindow.window.value.title`。运行时窗口位置和尺寸在 `currentWindow.window.value.rect`，包含 `left`、`top`、`width`、`height`。

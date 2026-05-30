@@ -13,10 +13,8 @@
       </button>
     </main>
 
-    <template #dock="{ windows, items, setDockTarget }">
+    <template #dock="{ manager, setDockTarget }">
       <Win10Dock
-        :windows="windows"
-        :items="items"
         @dock-target-change="setDockTarget"
       >
         <template #left>
@@ -39,8 +37,8 @@
         </template>
 
         <template #right>
-          <button type="button" class="taskbar-command" title="隐藏全部" @click="windows.hideAll()">隐藏</button>
-          <button type="button" class="taskbar-command" title="显示全部" @click="windows.showAll()">显示</button>
+          <button type="button" class="taskbar-command" title="隐藏全部" @click="manager.hideAll()">隐藏</button>
+          <button type="button" class="taskbar-command" title="显示全部" @click="manager.showAll()">显示</button>
           <div class="taskbar-tray">
             <span>网络</span>
             <span>音量</span>
@@ -55,7 +53,7 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useCurrentWindow, WindowsDesktop, Win10Dock } from 'vue3-windows'
-import type { WindowsDesktopRef, WindowsItem } from 'vue3-windows'
+import type { WindowsDesktopRef } from 'vue3-windows'
 
 type AppId = 'explorer' | 'notes' | 'settings'
 
@@ -65,6 +63,10 @@ type AppMeta = {
   icon: string
   width: number
   height: number
+}
+
+type WindowContentProps = {
+  title: string
 }
 
 const apps: AppMeta[] = [
@@ -121,7 +123,7 @@ function toggleStartMenu() {
 }
 
 function openApp(id: AppId) {
-  const app = apps.find((item) => item.id === id)
+  const app = apps.find((candidate) => candidate.id === id)
   if (!app) {
     return
   }
@@ -159,8 +161,8 @@ function createWindowContent(title: string, groups: string[][]) {
   return defineComponent({
     name: `${title}Window`,
     props: {
-      item: {
-        type: Object as () => WindowsItem,
+      window: {
+        type: Object as () => WindowContentProps,
         required: true,
       },
     },
@@ -183,7 +185,7 @@ function createWindowContent(title: string, groups: string[][]) {
               h('button', { type: 'button', class: 'win-window__tile' }, [
                 h('span', label.slice(0, 1)),
                 h('strong', label),
-                h('small', props.item.title),
+                h('small', props.window.title),
               ]),
             ),
           )),

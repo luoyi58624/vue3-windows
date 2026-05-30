@@ -3,9 +3,9 @@
     <slot />
     <slot
       name="dock"
+      :manager="manager"
       :windows="windows"
-      :items="items"
-      :minimized-items="minimizedItems"
+      :minimized-windows="minimizedWindows"
       :set-dock-target="handleDockTargetChange"
     >
       <WindowsDock @dock-target-change="handleDockTargetChange">
@@ -42,35 +42,35 @@ const props = defineProps({
 
 const dockTargetRef = ref<HTMLElement | null>(null)
 
-const windows = useWindowsController(dockTargetRef, {
+const manager = useWindowsController(dockTargetRef, {
   animated: props.animated,
   maximizeTarget: props.maximizeTarget,
 })
 
-const items = computed(() => windows.items.value)
-const minimizedItems = computed(() => windows.items.value.filter((item) => item.visible && item.state === 'minimized'))
+const windows = computed(() => manager.windows.value)
+const minimizedWindows = computed(() => manager.windows.value.filter((windowRecord) => windowRecord.visible && windowRecord.state === 'minimized'))
 const context = {
+  manager,
   windows,
-  items,
-  minimizedItems,
+  minimizedWindows,
 }
 
 provideWindowsDesktopContext(context)
 
 defineExpose<WindowsRef>({
-  items: windows.items,
-  create: windows.create,
-  close: windows.close,
-  closeAll: windows.closeAll,
-  hide: windows.hide,
-  hideAll: windows.hideAll,
-  show: windows.show,
-  showAll: windows.showAll,
-  minimize: windows.minimize,
-  moveTop: windows.moveTop,
-  get: windows.get,
-  update: windows.update,
-  setState: windows.setState,
+  windows: manager.windows,
+  create: manager.create,
+  close: manager.close,
+  closeAll: manager.closeAll,
+  hide: manager.hide,
+  hideAll: manager.hideAll,
+  show: manager.show,
+  showAll: manager.showAll,
+  minimize: manager.minimize,
+  moveTop: manager.moveTop,
+  get: manager.get,
+  update: manager.update,
+  setState: manager.setState,
 })
 
 function handleDockTargetChange(target: HTMLElement | null) {

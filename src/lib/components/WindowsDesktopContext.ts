@@ -1,11 +1,11 @@
 import { inject, provide, type ComputedRef, type InjectionKey } from 'vue'
 
-import type { WindowsItem, WindowsRef } from '../types'
+import type { WindowRecord, WindowsRef } from '../types'
 
 export interface WindowsDesktopContext {
-  windows: WindowsRef
-  items: ComputedRef<WindowsItem[]>
-  minimizedItems: ComputedRef<WindowsItem[]>
+  manager: WindowsRef
+  windows: ComputedRef<WindowRecord[]>
+  minimizedWindows: ComputedRef<WindowRecord[]>
 }
 
 const windowsDesktopKey = Symbol('vue3-windows-desktop') as InjectionKey<WindowsDesktopContext>

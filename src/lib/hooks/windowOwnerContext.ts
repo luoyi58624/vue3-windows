@@ -1,6 +1,6 @@
 import { getCurrentInstance, markRaw, type AppContext, type ComponentInternalInstance } from 'vue'
 
-import type { CreateWindowOptions, WindowsItem } from '../types'
+import type { WindowOptions, WindowRecord } from '../types'
 
 type WindowProvides = AppContext['provides']
 type InstanceWithProvides = ComponentInternalInstance & {
@@ -14,11 +14,11 @@ export interface WindowOwnerContext {
 
 export const windowOwnerContextKey: unique symbol = Symbol('vue3-windows-owner-context')
 
-export type ContextualCreateWindowOptions = CreateWindowOptions & {
+export type ContextualWindowOptions = WindowOptions & {
   [windowOwnerContextKey]?: WindowOwnerContext | null
 }
 
-export type ContextualWindowsItem = WindowsItem & {
+export type ContextualWindowRecord = WindowRecord & {
   [windowOwnerContextKey]?: WindowOwnerContext | null
 }
 
@@ -53,9 +53,9 @@ export function createAppContextWithOwnerContext(context: WindowOwnerContext | n
 }
 
 export function withWindowOwnerContext(
-  options: CreateWindowOptions,
+  options: WindowOptions,
   context: WindowOwnerContext | null | undefined,
-): CreateWindowOptions {
+): WindowOptions {
   if (!context) {
     return options
   }
@@ -63,16 +63,16 @@ export function withWindowOwnerContext(
   return {
     ...options,
     [windowOwnerContextKey]: markRaw(context),
-  } as ContextualCreateWindowOptions
+  } as ContextualWindowOptions
 }
 
-export function getWindowOwnerContext(item: WindowsItem) {
-  return (item as ContextualWindowsItem)[windowOwnerContextKey] ?? null
+export function getWindowOwnerContext(windowRecord: WindowRecord) {
+  return (windowRecord as ContextualWindowRecord)[windowOwnerContextKey] ?? null
 }
 
-export function inheritWindowOwnerProvides(item: WindowsItem) {
+export function inheritWindowOwnerProvides(windowRecord: WindowRecord) {
   const instance = getCurrentInstance() as InstanceWithProvides | null
-  const context = getWindowOwnerContext(item)
+  const context = getWindowOwnerContext(windowRecord)
 
   if (instance && context?.provides) {
     instance.provides = Object.create(context.provides)

@@ -1,9 +1,9 @@
 import { inject, provide, type ComputedRef, type InjectionKey } from 'vue'
 
-import type { WindowState, WindowsItem, WindowsRef } from '../types'
+import type { WindowOptions, WindowRecord, WindowState, WindowsRef } from '../types'
 
 export interface CurrentWindowContext {
-  item: ComputedRef<WindowsItem>
+  window: ComputedRef<WindowRecord>
   api: ComputedRef<WindowsRef>
   minimizedCount: ComputedRef<number>
   totalCount: ComputedRef<number>
@@ -16,7 +16,7 @@ export interface CurrentWindowContext {
   restore(): void
   moveTop(): void
   setState(state: WindowState): void
-  update(patch: Partial<WindowsItem>): void
+  update(patch: Partial<WindowOptions>): void
 }
 
 const currentWindowKey = Symbol('vue3-windows-current-window') as InjectionKey<CurrentWindowContext>

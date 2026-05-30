@@ -25,9 +25,9 @@ function findPanelByText(text: string) {
   ) as HTMLElement | undefined
 }
 
-function getWindowsItems(windows: ReturnType<typeof useWindows> | null) {
-  const items = windows?.items as unknown
-  return Array.isArray(items) ? items : windows?.items.value ?? []
+function getManagedWindows(manager: ReturnType<typeof useWindows> | null) {
+  const windows = manager?.windows as unknown
+  return Array.isArray(windows) ? windows : manager?.windows.value ?? []
 }
 
 const ActionWindow = defineComponent({
@@ -221,7 +221,7 @@ describe('useCurrentWindow', () => {
       closeButton.click()
       await nextTick()
 
-      expect(getWindowsItems(wrapper.vm.windows)).toHaveLength(1)
+      expect(getManagedWindows(wrapper.vm.windows)).toHaveLength(1)
       expect(findPanelByText('First')).toBeUndefined()
     } finally {
       wrapper.unmount()
@@ -251,7 +251,7 @@ describe('useCurrentWindow', () => {
       await nextTick()
 
       expect(findPanelByText('First')).toBeUndefined()
-      expect(getWindowsItems(wrapper.vm.windows)).toHaveLength(1)
+      expect(getManagedWindows(wrapper.vm.windows)).toHaveLength(1)
 
       wrapper.vm.windows?.show('first')
       await nextTick()

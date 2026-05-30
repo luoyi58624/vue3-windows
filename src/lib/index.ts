@@ -5,13 +5,12 @@ export { default as WindowsDock } from './components/WindowsDock.vue'
 export { useCurrentWindow } from './hooks/currentWindow'
 export type {
   AccentType,
-  CreateWindowOptions,
   UseWindowsOptions,
   WindowAnchorTarget,
   WindowId,
+  WindowOptions,
   WindowOutsideClickBehavior,
   Win10DockTaskSlotProps,
-  WindowsItem,
   WindowsSetupOptions,
   WindowsDesktopExpose,
   WindowsDesktopRef,

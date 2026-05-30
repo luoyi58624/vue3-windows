@@ -5,7 +5,7 @@ import { Win10Dock, WindowsDesktop, type WindowsDesktopRef } from 'vue3-windows'
 const windowsRef = ref<WindowsDesktopRef | null>(null)
 
 function openWindow() {
-  windowsRef.value!.create({id: 1})
+  windowsRef.value!.create()
 }
 </script>
 

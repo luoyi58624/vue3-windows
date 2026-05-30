@@ -73,21 +73,21 @@
         <h2>当前窗口</h2>
 
         <ul v-if="windowSummaries.length" class="dev-window-list">
-          <li v-for="item in windowSummaries" :key="item.id">
+          <li v-for="windowRecord in windowSummaries" :key="windowRecord.id">
             <div class="dev-window-list__meta">
-              <strong>{{ item.title }}</strong>
-              <span>{{ item.state }} · {{ item.visible ? 'visible' : 'hidden' }}</span>
+              <strong>{{ windowRecord.title }}</strong>
+              <span>{{ windowRecord.state }} · {{ windowRecord.visible ? 'visible' : 'hidden' }}</span>
             </div>
 
             <div class="dev-window-list__actions">
-              <button type="button" @click="desktopRef?.moveTop(item.id)">置顶</button>
-              <button type="button" @click="desktopRef?.setState(item.id, 'minimized')">最小化</button>
-              <button type="button" @click="desktopRef?.setState(item.id, 'maximized')">最大化</button>
-              <button type="button" @click="desktopRef?.setState(item.id, 'normal')">还原</button>
-              <button type="button" @click="toggleVisibility(item.id, item.visible)">
-                {{ item.visible ? '隐藏' : '显示' }}
+              <button type="button" @click="desktopRef?.moveTop(windowRecord.id)">置顶</button>
+              <button type="button" @click="desktopRef?.setState(windowRecord.id, 'minimized')">最小化</button>
+              <button type="button" @click="desktopRef?.setState(windowRecord.id, 'maximized')">最大化</button>
+              <button type="button" @click="desktopRef?.setState(windowRecord.id, 'normal')">还原</button>
+              <button type="button" @click="toggleVisibility(windowRecord.id, windowRecord.visible)">
+                {{ windowRecord.visible ? '隐藏' : '显示' }}
               </button>
-              <button type="button" class="is-danger" @click="desktopRef?.close(item.id)">关闭</button>
+              <button type="button" class="is-danger" @click="desktopRef?.close(windowRecord.id)">关闭</button>
             </div>
           </li>
         </ul>
@@ -117,11 +117,11 @@ const accentType = ref<AccentType>('primary')
 let nextWindowId = 1
 
 const windowSummaries = computed(() =>
-  desktopRef.value?.items.map((item) => ({
-    id: item.id,
-    title: item.title,
-    state: item.state,
-    visible: item.visible,
+  desktopRef.value?.windows.map((windowRecord) => ({
+    id: windowRecord.id,
+    title: windowRecord.title,
+    state: windowRecord.state,
+    visible: windowRecord.visible,
   })) ?? [],
 )
 
@@ -130,7 +130,6 @@ function createWindow(preset: WindowPreset) {
   const dimensions = getDimensions(preset)
 
   desktopRef.value?.create({
-    id: `dev-window-${index}`,
     title: `${titlePrefix.value} ${index}`,
     component: PlaygroundWindowContent,
     width: dimensions.width,

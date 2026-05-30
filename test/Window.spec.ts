@@ -28,9 +28,9 @@ function findPanelByText(text: string) {
   ) as HTMLElement | undefined
 }
 
-function getWindowsItems(windows: ReturnType<typeof useWindows> | null) {
-  const items = windows?.items as unknown
-  return Array.isArray(items) ? items : windows?.items.value ?? []
+function getManagedWindows(manager: ReturnType<typeof useWindows> | null) {
+  const windows = manager?.windows as unknown
+  return Array.isArray(windows) ? windows : manager?.windows.value ?? []
 }
 
 const WindowContent = defineComponent({
@@ -59,6 +59,18 @@ const WindowContent = defineComponent({
           'close',
         ),
       ])
+  },
+})
+
+const GeometryWindowContent = defineComponent({
+  name: 'GeometryWindowContent',
+  setup() {
+    const currentWindow = useCurrentWindow()
+
+    return () => {
+      const rect = currentWindow.window.value.rect
+      return h('div', { class: 'geometry-window-content' }, `${rect?.width ?? '-'}x${rect?.height ?? '-'}`)
+    }
   },
 })
 
@@ -594,6 +606,38 @@ describe('useWindows', () => {
     }
   })
 
+  it('does not steal focus from interactive window content on pointer down', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      await wrapper.get('.open-window').trigger('click')
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Alpha')
+      const openButton = wrapper.get('.open-window').element as HTMLButtonElement
+      const contentButton = document.body.querySelector('.content-close') as HTMLButtonElement | null
+      expect(panel).toBeDefined()
+      expect(contentButton).toBeDefined()
+
+      openButton.focus()
+      expect(document.activeElement).toBe(openButton)
+
+      contentButton!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+      await nextTick()
+
+      expect(document.activeElement).toBe(openButton)
+      expect(panel!.classList.contains('window-dialog--active')).toBe(true)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('uses create width and height as the initial window size', async () => {
     const wrapper = mount(Host, {
       attachTo: document.body,
@@ -618,6 +662,37 @@ describe('useWindows', () => {
       expect(panel).toBeDefined()
       expect(panel?.style.width).toBe('720px')
       expect(panel?.style.height).toBe('360px')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('exposes the rendered window size to content components', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'geometry',
+        title: 'Geometry',
+        width: 640,
+        height: 360,
+        component: GeometryWindowContent,
+      })
+
+      await nextTick()
+      await nextTick()
+      await nextTick()
+
+      expect(document.body.querySelector('.geometry-window-content')?.textContent).toBe('640x360')
+      expect(wrapper.vm.windows?.get('geometry')?.rect).toMatchObject({
+        width: 640,
+        height: 360,
+      })
     } finally {
       wrapper.unmount()
     }
@@ -827,7 +902,7 @@ describe('useWindows', () => {
       await nextTick()
 
       expect(findPanelByText('Outside None')).toBeDefined()
-      expect(getWindowsItems(wrapper.vm.windows)).toHaveLength(1)
+      expect(getManagedWindows(wrapper.vm.windows)).toHaveLength(1)
     } finally {
       wrapper.unmount()
     }
@@ -857,7 +932,7 @@ describe('useWindows', () => {
       await nextTick()
 
       expect(findPanelByText('Outside Hide')).toBeUndefined()
-      expect(getWindowsItems(wrapper.vm.windows)).toHaveLength(1)
+      expect(getManagedWindows(wrapper.vm.windows)).toHaveLength(1)
       expect(wrapper.vm.windows?.get('outside-hide')?.visible).toBe(false)
     } finally {
       wrapper.unmount()
@@ -1025,8 +1100,8 @@ describe('useWindows', () => {
 
       expect(findPanelByText('Dock First')).toBeUndefined()
       expect(findPanelByText('Dock Second')).toBeUndefined()
-      expect(getWindowsItems(wrapper.vm.windows)).toHaveLength(2)
-      expect(getWindowsItems(wrapper.vm.windows).every((item) => !item.visible)).toBe(true)
+      expect(getManagedWindows(wrapper.vm.windows)).toHaveLength(2)
+      expect(getManagedWindows(wrapper.vm.windows).every((windowRecord) => !windowRecord.visible)).toBe(true)
 
       wrapper.vm.windows?.showAll()
       await nextTick()
@@ -1035,7 +1110,7 @@ describe('useWindows', () => {
 
       expect(findPanelByText('Dock First')).toBeDefined()
       expect(findPanelByText('Dock Second')).toBeDefined()
-      expect(getWindowsItems(wrapper.vm.windows).every((item) => item.visible)).toBe(true)
+      expect(getManagedWindows(wrapper.vm.windows).every((windowRecord) => windowRecord.visible)).toBe(true)
     } finally {
       wrapper.unmount()
     }
@@ -1391,8 +1466,22 @@ describe('useWindows', () => {
       await nextTick()
       await nextTick()
 
-      expect(getWindowsItems(wrapper.vm.desktopWindows)).toHaveLength(1)
-      expect(getWindowsItems(wrapper.vm.standaloneWindows)).toHaveLength(1)
+      expect(getManagedWindows(wrapper.vm.desktopWindows)).toHaveLength(1)
+      expect(getManagedWindows(wrapper.vm.standaloneWindows)).toHaveLength(1)
+
+      const generatedDesktopWindow = wrapper.vm.desktopWindows?.create({
+        title: 'Generated Desktop',
+        component: WindowContent,
+      })
+      const generatedStandaloneWindow = wrapper.vm.standaloneWindows?.create({
+        title: 'Generated Standalone',
+        component: WindowContent,
+      })
+      await nextTick()
+      await nextTick()
+
+      expect(generatedDesktopWindow?.id).toBe(1)
+      expect(generatedStandaloneWindow?.id).toBe(1)
 
       const desktopPanel = findPanelByText('Desktop Owned')
       const standalonePanel = findPanelByText('Forced Standalone')

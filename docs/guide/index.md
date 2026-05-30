@@ -16,7 +16,7 @@ const windows = useWindows({ global: true })
 </script>
 
 <template>
-  <button type="button" @click="windows.create({ id: 'Demo' })">打开窗口</button>
+  <button type="button" @click="windows.create({ title: 'Demo' })">打开窗口</button>
 </template>
 ```
 
@@ -83,7 +83,6 @@ const FormContent = defineComponent({
 
 function openForm() {
   windows.create({
-    id: 'form-demo',
     title: 'Form 表单',
     width: 520,
     height: 420,

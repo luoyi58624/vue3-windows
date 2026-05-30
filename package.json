@@ -26,8 +26,10 @@
   ],
   "scripts": {
     "dev": "vitepress dev docs --host 0.0.0.0 --port 4000",
+    "dev:local": "bunx vite --config examples/native/vite.config.ts",
     "build": "bun run build:lib && bun run build:docs",
     "build:lib": "bunx vue-tsc -b && bunx vite build",
+    "build:local": "bunx vite build --config examples/native/vite.config.ts",
     "build:docs": "bunx vitepress build docs",
     "test": "vitest run",
     "test:watch": "vitest",

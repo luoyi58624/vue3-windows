@@ -10,11 +10,18 @@ export type WindowId = number | string
 
 export type WindowAnchorTarget = string | HTMLElement | import('vue').Ref<HTMLElement | null | undefined>
 
-export interface WindowsItem {
-  id: WindowId
-  title: string
-  visible: boolean
-  state: WindowState
+export interface WindowGeometry {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+export interface WindowOptions {
+  id?: WindowId
+  title?: string
+  visible?: boolean
+  state?: WindowState
   outsideClickBehavior?: WindowOutsideClickBehavior
   width?: number
   height?: number
@@ -32,13 +39,17 @@ export interface WindowsItem {
   [key: string]: any
 }
 
-export interface CreateWindowOptions extends Partial<Omit<WindowsItem, 'id'>> {
+export interface WindowRecord extends WindowOptions {
   id: WindowId
+  title: string
+  visible: boolean
+  state: WindowState
+  rect?: WindowGeometry
 }
 
 export interface WindowsRef {
-  items: Readonly<import('vue').Ref<WindowsItem[]>>
-  create(options: CreateWindowOptions): WindowsItem
+  windows: Readonly<import('vue').Ref<WindowRecord[]>>
+  create(options?: WindowOptions): WindowRecord
   close(id: WindowId): void
   closeAll(): void
   hide(id: WindowId): void
@@ -47,8 +58,8 @@ export interface WindowsRef {
   showAll(): void
   minimize(id: WindowId): void
   moveTop(id: WindowId): void
-  get(id: WindowId): WindowsItem | undefined
-  update(id: WindowId, patch: Partial<WindowsItem>): void
+  get(id: WindowId): WindowRecord | undefined
+  update(id: WindowId, patch: Partial<WindowOptions>): void
   setState(id: WindowId, state: WindowState): void
 }
 
@@ -75,15 +86,15 @@ export interface WindowsSetupOptions {
   bgColor?: string
 }
 
-export interface WindowsDesktopRef extends Omit<WindowsRef, 'items'> {
-  items: WindowsItem[]
+export interface WindowsDesktopRef extends Omit<WindowsRef, 'windows'> {
+  windows: WindowRecord[]
 }
 
 export interface WindowsDesktopExpose extends WindowsRef {}
 
 export interface Win10DockTaskSlotProps {
-  windows: WindowsRef
-  items: WindowsItem[]
-  minimizedItems: WindowsItem[]
+  manager: WindowsRef
+  windows: WindowRecord[]
+  minimizedWindows: WindowRecord[]
   TaskComponent: Component
 }

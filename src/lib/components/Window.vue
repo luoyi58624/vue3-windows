@@ -114,18 +114,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 
-import type { AccentType, WindowId, WindowOutsideClickBehavior, WindowState } from '../types'
+import type { AccentType, WindowGeometry, WindowId, WindowOutsideClickBehavior, WindowState } from '../types'
 
 type RestoreState = 'normal' | 'maximized'
 type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 type WindowAnimationMode = 'transform' | 'geometry'
 
-type WindowRect = {
-  left: number
-  top: number
-  width: number
-  height: number
-}
+type WindowRect = WindowGeometry
 
 type WindowRuntimeState = {
   openCount: number
@@ -264,6 +259,7 @@ const emit = defineEmits<{
   minimize: []
   maximize: []
   restore: []
+  'geometry-change': [rect: WindowGeometry]
   'outside-click': [behavior: WindowOutsideClickBehavior]
 }>()
 
@@ -532,6 +528,26 @@ watch(
   },
 )
 
+watch(
+  () => [
+    hasInitialized.value,
+    visible.value,
+    windowState.value,
+    renderedWindowState.value,
+    isWindowAnimating.value,
+    windowRect.left,
+    windowRect.top,
+    windowRect.width,
+    windowRect.height,
+    viewportVersion.value,
+    maximizeTarget.value,
+  ] as const,
+  () => {
+    emitGeometryChange()
+  },
+  { flush: 'post', immediate: true },
+)
+
 onMounted(() => {
   resolvePanelTarget()
   resolveDockTarget()
@@ -575,13 +591,28 @@ function bringToFront() {
   syncActiveWindowRuntime()
 }
 
-function handlePanelPointerDown() {
+function handlePanelPointerDown(event: PointerEvent) {
   bringToFront()
+  if (shouldKeepTargetFocus(event)) {
+    return
+  }
+
   focusPanel()
 }
 
 function focusPanel() {
   panelRef.value?.focus({ preventScroll: true })
+}
+
+function shouldKeepTargetFocus(event: Event) {
+  const targetElement = getEventTargetElement(event)
+  if (!targetElement || targetElement === panelRef.value) {
+    return false
+  }
+
+  return Boolean(targetElement.closest(
+    'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"]), [contenteditable=""], [contenteditable="true"]',
+  ))
 }
 
 function focusPanelOnNextTick() {
@@ -1460,6 +1491,22 @@ function getCurrentWindowRect() {
     width: Math.round(rect.width),
     height: Math.round(rect.height),
   })
+}
+
+function getRenderedWindowRect(): WindowRect {
+  if (windowState.value === 'maximized') {
+    return getMaximizedRect()
+  }
+
+  return getCurrentWindowRect()
+}
+
+function emitGeometryChange() {
+  if (!hasInitialized.value || !visible.value || windowState.value === 'minimized' || isWindowAnimating.value) {
+    return
+  }
+
+  emit('geometry-change', getRenderedWindowRect())
 }
 
 function getResizedRect(

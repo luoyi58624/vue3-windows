@@ -2,8 +2,8 @@
   <article class="playground-window">
     <header class="playground-window__header">
       <div>
-        <strong>{{ item.title }}</strong>
-        <p>ID: {{ item.id }}</p>
+        <strong>{{ window.title }}</strong>
+        <p>ID: {{ window.id }}</p>
       </div>
 
       <div class="playground-window__actions">
@@ -18,24 +18,24 @@
     <dl class="playground-window__meta">
       <div>
         <dt>状态</dt>
-        <dd>{{ currentWindow.item.value.state }}</dd>
+        <dd>{{ currentWindow.window.value.state }}</dd>
       </div>
       <div>
         <dt>外部点击</dt>
-        <dd>{{ item.outsideClickBehavior }}</dd>
+        <dd>{{ window.outsideClickBehavior }}</dd>
       </div>
       <div>
         <dt>尺寸</dt>
-        <dd>{{ item.width }} × {{ item.height }}</dd>
+        <dd>{{ window.width }} × {{ window.height }}</dd>
       </div>
     </dl>
 
     <label class="playground-window__field">
       <span>备注</span>
       <textarea
-        :value="item.note"
+        :value="window.note"
         rows="6"
-        @input="item.note = ($event.target as HTMLTextAreaElement).value"
+        @input="window.note = ($event.target as HTMLTextAreaElement).value"
       />
     </label>
   </article>
@@ -45,7 +45,7 @@
 import { useCurrentWindow } from 'vue3-windows'
 
 defineProps<{
-  item: {
+  window: {
     id: string
     title: string
     note: string

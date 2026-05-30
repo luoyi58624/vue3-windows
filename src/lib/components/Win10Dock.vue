@@ -1,29 +1,29 @@
 <template>
   <footer class="win10-dock" data-vue3-windows-win10-dock>
     <div class="win10-dock__left">
-      <slot name="left" :windows="windows" :items="items" :minimized-items="minimizedItems" />
+      <slot name="left" :manager="manager" :windows="windows" :minimized-windows="minimizedWindows" />
     </div>
 
     <div class="win10-dock__scroller" data-vue3-windows-dock-scroller @wheel="handleWheel">
       <div ref="trackRef" class="win10-dock__track" data-vue3-windows-dock-track>
         <slot
           name="tasks"
+          :manager="manager"
           :windows="windows"
-          :items="items"
-          :minimized-items="minimizedItems"
+          :minimized-windows="minimizedWindows"
           :TaskComponent="Win10DockTask"
         >
           <Win10DockTask
-            v-for="item in minimizedItems"
-            :key="item.id"
-            :item="item"
+            v-for="windowRecord in minimizedWindows"
+            :key="windowRecord.id"
+            :window-record="windowRecord"
           />
         </slot>
       </div>
     </div>
 
     <div class="win10-dock__right">
-      <slot name="right" :windows="windows" :items="items" :minimized-items="minimizedItems" />
+      <slot name="right" :manager="manager" :windows="windows" :minimized-windows="minimizedWindows" />
     </div>
   </footer>
 </template>
@@ -33,23 +33,23 @@ import { computed, defineComponent, h, onBeforeUnmount, onMounted, onUpdated, re
 import type { PropType } from 'vue'
 
 import { useWindowsDesktopContext } from './WindowsDesktopContext'
-import type { WindowsItem } from '../types'
+import type { WindowRecord } from '../types'
 
 const emit = defineEmits<{
   dockTargetChange: [target: HTMLElement | null]
 }>()
 
 const context = useWindowsDesktopContext()
-const windows = context.windows
-const items = computed(() => context.items.value)
-const minimizedItems = computed(() => context.minimizedItems.value)
+const manager = context.manager
+const windows = computed(() => context.windows.value)
+const minimizedWindows = computed(() => context.minimizedWindows.value)
 const trackRef = ref<HTMLElement | null>(null)
 
 const Win10DockTask = defineComponent({
   name: 'Win10DockTask',
   props: {
-    item: {
-      type: Object as PropType<WindowsItem>,
+    windowRecord: {
+      type: Object as PropType<WindowRecord>,
       required: true,
     },
   },
@@ -62,18 +62,18 @@ const Win10DockTask = defineComponent({
           class: [
             'win10-dock-task',
             {
-              'is-hidden': !props.item.visible,
-              'is-minimized': props.item.state === 'minimized',
+              'is-hidden': !props.windowRecord.visible,
+              'is-minimized': props.windowRecord.state === 'minimized',
             },
           ],
           'data-vue3-windows-dock-task': '',
-          'data-vue3-windows-window-id': String(props.item.id),
-          title: props.item.title,
-          onClick: () => windows.moveTop(props.item.id),
+          'data-vue3-windows-window-id': String(props.windowRecord.id),
+          title: props.windowRecord.title,
+          onClick: () => manager.moveTop(props.windowRecord.id),
         },
         [
           h('span', { class: 'win10-dock-task__mark' }),
-          h('span', { class: 'win10-dock-task__title' }, props.item.title || String(props.item.id)),
+          h('span', { class: 'win10-dock-task__title' }, props.windowRecord.title || String(props.windowRecord.id)),
         ],
       )
   },

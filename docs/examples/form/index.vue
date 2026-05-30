@@ -14,7 +14,7 @@ const windows = useWindows({ global: true })
 
 function openForm() {
   windows.create({
-    id: 'Form 表单',
+    title: 'Form 表单',
     width: 520,
     component: Form,
   })

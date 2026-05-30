@@ -13,7 +13,7 @@ import {
 
 import Window from '../components/Window.vue'
 import WindowContentHost from '../components/WindowContentHost'
-import type { UseWindowsOptions, WindowAnchorTarget, WindowOutsideClickBehavior, WindowsSetupOptions } from '../types'
+import type { UseWindowsOptions, WindowAnchorTarget, WindowGeometry, WindowOutsideClickBehavior, WindowsSetupOptions } from '../types'
 import type { useWindowsManager } from './useWindowsManager'
 import { createAppContextWithOwnerContext, type WindowOwnerContext } from './windowOwnerContext'
 
@@ -49,44 +49,45 @@ export function mountWindowsRenderer(
   const Renderer = defineComponent({
     name: 'WindowsControllerRenderer',
     setup() {
-      return () => manager.model.value.map((item) => {
+      return () => manager.model.value.map((windowRecord) => {
         const globalOptions = options.setupOptions?.value ?? {}
 
         return h(Window, {
-          key: item.id,
-          ref: (instance: Element | ComponentPublicInstance | null) => manager.setWindowRef(item.id, instance),
-          modelValue: item.visible,
-          title: item.title,
-          windowId: item.id,
+          key: windowRecord.id,
+          ref: (instance: Element | ComponentPublicInstance | null) => manager.setWindowRef(windowRecord.id, instance),
+          modelValue: windowRecord.visible,
+          title: windowRecord.title,
+          windowId: windowRecord.id,
           animated: options.animated ?? globalOptions.animated ?? true,
-          outsideClickBehavior: item.outsideClickBehavior ?? globalOptions.outsideClickBehavior,
-          width: item.width ?? globalOptions.width,
-          height: item.height ?? globalOptions.height,
-          minWidth: item.minWidth ?? globalOptions.minWidth,
-          minHeight: item.minHeight ?? globalOptions.minHeight,
-          maxWidth: item.maxWidth ?? globalOptions.maxWidth,
-          maxHeight: item.maxHeight ?? globalOptions.maxHeight,
-          minimizable: options.minimizable === false ? false : item.minimizable ?? globalOptions.minimizable,
-          maximizable: item.maximizable ?? globalOptions.maximizable,
-          closable: item.closable ?? globalOptions.closable,
-          accentType: item.accentType ?? globalOptions.accentType ?? 'primary',
-          bgColor: item.bgColor ?? globalOptions.bgColor,
-          dockIndex: manager.getDockIndex(item.id),
+          outsideClickBehavior: windowRecord.outsideClickBehavior ?? globalOptions.outsideClickBehavior,
+          width: windowRecord.width ?? globalOptions.width,
+          height: windowRecord.height ?? globalOptions.height,
+          minWidth: windowRecord.minWidth ?? globalOptions.minWidth,
+          minHeight: windowRecord.minHeight ?? globalOptions.minHeight,
+          maxWidth: windowRecord.maxWidth ?? globalOptions.maxWidth,
+          maxHeight: windowRecord.maxHeight ?? globalOptions.maxHeight,
+          minimizable: options.minimizable === false ? false : windowRecord.minimizable ?? globalOptions.minimizable,
+          maximizable: windowRecord.maximizable ?? globalOptions.maximizable,
+          closable: windowRecord.closable ?? globalOptions.closable,
+          accentType: windowRecord.accentType ?? globalOptions.accentType ?? 'primary',
+          bgColor: windowRecord.bgColor ?? globalOptions.bgColor,
+          dockIndex: manager.getDockIndex(windowRecord.id),
           minimizeTo: dockTarget.value,
           maximizeTo: maximizeTarget.value,
-          'onUpdate:modelValue': (visible: boolean) => manager.handleVisibilityChange(item.id, visible),
-          onMinimizeStart: () => manager.handleMinimizeStart(item.id),
-          onMinimize: () => manager.updateWindowState(item.id, 'minimized'),
-          onMaximize: () => manager.updateWindowState(item.id, 'maximized'),
-          onRestore: () => manager.updateWindowState(item.id, 'normal'),
-          onOutsideClick: (behavior: WindowOutsideClickBehavior) => manager.handleOutsideClick(item.id, behavior),
-          onClosed: () => manager.handleClosed(item.id),
+          'onUpdate:modelValue': (visible: boolean) => manager.handleVisibilityChange(windowRecord.id, visible),
+          onMinimizeStart: () => manager.handleMinimizeStart(windowRecord.id),
+          onMinimize: () => manager.updateWindowState(windowRecord.id, 'minimized'),
+          onMaximize: () => manager.updateWindowState(windowRecord.id, 'maximized'),
+          onRestore: () => manager.updateWindowState(windowRecord.id, 'normal'),
+          onGeometryChange: (rect: WindowGeometry) => manager.updateWindowGeometry(windowRecord.id, rect),
+          onOutsideClick: (behavior: WindowOutsideClickBehavior) => manager.handleOutsideClick(windowRecord.id, behavior),
+          onClosed: () => manager.handleClosed(windowRecord.id),
         }, {
-          title: () => item.title,
+          title: () => windowRecord.title,
           default: () => h(WindowContentHost, {
-            item,
+            windowRecord,
             api: options.api ?? manager.api,
-            minimizedCount: manager.minimizedItems.value.length,
+            minimizedCount: manager.minimizedWindows.value.length,
             totalCount: manager.model.value.length,
           }),
         })

@@ -11,9 +11,9 @@
     >
       <div ref="trackRef" class="windows-dock__track" data-vue3-windows-dock-track>
         <WindowsDockTask
-          v-for="item in minimizedItems"
-          :key="item.id"
-          :item="item"
+          v-for="windowRecord in minimizedWindows"
+          :key="windowRecord.id"
+          :window-record="windowRecord"
         />
       </div>
     </div>
@@ -29,22 +29,22 @@ import { computed, defineComponent, h, onBeforeUnmount, onMounted, onUpdated, re
 import type { PropType } from 'vue'
 
 import { useWindowsDesktopContext } from './WindowsDesktopContext'
-import type { WindowsItem } from '../types'
+import type { WindowRecord } from '../types'
 
 const emit = defineEmits<{
   dockTargetChange: [target: HTMLElement | null]
 }>()
 
 const context = useWindowsDesktopContext()
-const windows = context.windows
-const minimizedItems = computed(() => context.minimizedItems.value)
+const manager = context.manager
+const minimizedWindows = computed(() => context.minimizedWindows.value)
 const trackRef = ref<HTMLElement | null>(null)
 
 const WindowsDockTask = defineComponent({
   name: 'WindowsDockTask',
   props: {
-    item: {
-      type: Object as PropType<WindowsItem>,
+    windowRecord: {
+      type: Object as PropType<WindowRecord>,
       required: true,
     },
   },
@@ -57,18 +57,18 @@ const WindowsDockTask = defineComponent({
           class: [
             'windows-dock-task',
             {
-              'is-hidden': !props.item.visible,
-              'is-minimized': props.item.state === 'minimized',
+              'is-hidden': !props.windowRecord.visible,
+              'is-minimized': props.windowRecord.state === 'minimized',
             },
           ],
           'data-vue3-windows-dock-task': '',
-          'data-vue3-windows-window-id': String(props.item.id),
-          title: props.item.title,
-          onClick: () => windows.moveTop(props.item.id),
+          'data-vue3-windows-window-id': String(props.windowRecord.id),
+          title: props.windowRecord.title,
+          onClick: () => manager.moveTop(props.windowRecord.id),
         },
         [
           h('span', { class: 'windows-dock-task__accent' }),
-          h('span', { class: 'windows-dock-task__title' }, props.item.title || String(props.item.id)),
+          h('span', { class: 'windows-dock-task__title' }, props.windowRecord.title || String(props.windowRecord.id)),
         ],
       )
   },
