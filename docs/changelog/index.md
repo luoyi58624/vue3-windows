@@ -2,6 +2,7 @@
 
 此页面由 `bun run release` 在发布时根据 git commit message 自动生成。
 
+- `d808309` 2026-05-30 - fix: Improve the window status
 - `132e350` 2026-05-30 - feat: Remove dock、animate，Simplified Window API
 - `a0b5891` 2026-05-30 - fix: Resolve the bug where clicking or dragging the title bar causes the size to increase automatically.
 - `a1ff3e4` 2026-05-30 - fix: Resolve the bug of element events
