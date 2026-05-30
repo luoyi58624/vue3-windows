@@ -2,6 +2,8 @@
 
 此页面由 `bun run release` 在发布时根据 git commit message 自动生成。
 
+- `a0b5891` 2026-05-30 - fix: Resolve the bug where clicking or dragging the title bar causes the size to increase automatically.
+- `a1ff3e4` 2026-05-30 - fix: Resolve the bug of element events
 - `5e1c0bb` 2026-05-30 - fix: provider responsive bug
 - `a95b3cf` 2026-05-29 - fix: remove globalWindows, prevent continuous z-indexing
 - `06afe3f` 2026-05-29 - fix: preserve context for global windows
