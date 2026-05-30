@@ -10,7 +10,7 @@
 import { useWindows } from 'vue3-windows'
 import Form from './Form.vue'
 
-const windows = useWindows({ global: true })
+const windows = useWindows()
 
 function openForm() {
   windows.create({

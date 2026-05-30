@@ -1,13 +1,19 @@
-import { inject, ref, type InjectionKey, type Ref } from 'vue'
+import type { WindowsConfig } from '../types'
 
-import type { WindowsSetupOptions } from '../types'
+const globalWindowsConfig: WindowsConfig = {}
 
-export type WindowsSetupConfigRef = Readonly<Ref<WindowsSetupOptions>>
+export function windowSetup(options: Partial<WindowsConfig>) {
+  for (const key of Object.keys(options) as Array<keyof WindowsConfig>) {
+    const value = options[key]
+    if (value === undefined) {
+      delete globalWindowsConfig[key]
+      continue
+    }
 
-export const windowsSetupConfigKey: InjectionKey<WindowsSetupConfigRef> = Symbol('vue3-windows:setup-config')
+    globalWindowsConfig[key] = value as never
+  }
+}
 
-const defaultWindowsSetupOptions: WindowsSetupConfigRef = ref({})
-
-export function useWindowsSetupOptions() {
-  return inject(windowsSetupConfigKey, defaultWindowsSetupOptions)
+export function getWindowSetupConfig(): Readonly<WindowsConfig> {
+  return globalWindowsConfig
 }

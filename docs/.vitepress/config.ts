@@ -13,7 +13,7 @@ export default defineConfig({
       { text: '指南', link: '/guide/' },
       { text: 'Demo', link: '/demo/' },
       { text: '更新历史', link: '/changelog/' },
-      ...(isDev ? [{ text: 'Win10 Demo', link: '/demo/win10' }, { text: '测试页', link: '/dev/' }] : []),
+      ...(isDev ? [{ text: '测试页', link: '/dev/' }] : []),
     ],
     sidebar: [
       {
@@ -23,7 +23,7 @@ export default defineConfig({
           { text: 'API', link: '/api/' },
           { text: 'Demo', link: '/demo/' },
           { text: '更新历史', link: '/changelog/' },
-          ...(isDev ? [ { text: 'Win10 Demo', link: '/demo/win10' }, { text: '测试页', link: '/dev/' }] : []),
+          ...(isDev ? [{ text: '测试页', link: '/dev/' }] : []),
         ],
       },
     ],

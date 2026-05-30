@@ -9,8 +9,6 @@ export interface CurrentWindowContext {
   totalCount: ComputedRef<number>
   close(): void
   remove(): void
-  hide(): void
-  show(): void
   minimize(): void
   maximize(): void
   restore(): void

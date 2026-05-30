@@ -39,8 +39,6 @@ export default defineComponent({
       totalCount,
       close: () => props.api.close(props.windowRecord.id),
       remove: () => props.api.close(props.windowRecord.id),
-      hide: () => props.api.hide(props.windowRecord.id),
-      show: () => props.api.show(props.windowRecord.id),
       minimize: () => props.api.minimize(props.windowRecord.id),
       maximize: () => props.api.setState(props.windowRecord.id, 'maximized'),
       restore: () => props.api.setState(props.windowRecord.id, 'normal'),

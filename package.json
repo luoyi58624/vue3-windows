@@ -3,7 +3,7 @@
   "private": false,
   "version": "1.0.6",
   "type": "module",
-  "description": "Draggable, resizable, minimizable window components for Vue 3.",
+  "description": "Lightweight hook-driven window manager for Vue 3.",
   "repository": {
     "type": "git",
     "url": "https://github.com/luoyi58624/vue3-windows"
@@ -42,7 +42,6 @@
     "vue",
     "vue3",
     "window",
-    "desktop",
     "dialog",
     "component"
   ],

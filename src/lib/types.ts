@@ -4,11 +4,9 @@ export type AccentType = 'primary' | 'success' | 'warning' | 'danger' | 'info'
 
 export type WindowState = 'normal' | 'minimized' | 'maximized'
 
-export type WindowOutsideClickBehavior = 'none' | 'hide' | 'minimize' | 'remove'
+export type WindowOutsideClickBehavior = 'none' | 'minimize' | 'remove'
 
 export type WindowId = number | string
-
-export type WindowAnchorTarget = string | HTMLElement | import('vue').Ref<HTMLElement | null | undefined>
 
 export interface WindowGeometry {
   left: number
@@ -20,7 +18,6 @@ export interface WindowGeometry {
 export interface WindowOptions {
   id?: WindowId
   title?: string
-  visible?: boolean
   state?: WindowState
   outsideClickBehavior?: WindowOutsideClickBehavior
   width?: number
@@ -42,7 +39,6 @@ export interface WindowOptions {
 export interface WindowRecord extends WindowOptions {
   id: WindowId
   title: string
-  visible: boolean
   state: WindowState
   rect?: WindowGeometry
 }
@@ -52,10 +48,6 @@ export interface WindowsRef {
   create(options?: WindowOptions): WindowRecord
   close(id: WindowId): void
   closeAll(): void
-  hide(id: WindowId): void
-  hideAll(): void
-  show(id: WindowId): void
-  showAll(): void
   minimize(id: WindowId): void
   moveTop(id: WindowId): void
   get(id: WindowId): WindowRecord | undefined
@@ -63,15 +55,7 @@ export interface WindowsRef {
   setState(id: WindowId, state: WindowState): void
 }
 
-export interface UseWindowsOptions {
-  animated?: boolean
-  global?: boolean
-  maximizeTarget?: WindowAnchorTarget | null
-  minimizable?: boolean
-}
-
-export interface WindowsSetupOptions {
-  animated?: boolean
+export interface WindowsConfig {
   outsideClickBehavior?: WindowOutsideClickBehavior
   width?: number
   height?: number
@@ -86,15 +70,4 @@ export interface WindowsSetupOptions {
   bgColor?: string
 }
 
-export interface WindowsDesktopRef extends Omit<WindowsRef, 'windows'> {
-  windows: WindowRecord[]
-}
-
-export interface WindowsDesktopExpose extends WindowsRef {}
-
-export interface Win10DockTaskSlotProps {
-  manager: WindowsRef
-  windows: WindowRecord[]
-  minimizedWindows: WindowRecord[]
-  TaskComponent: Component
-}
+export interface UseWindowsOptions extends WindowsConfig {}

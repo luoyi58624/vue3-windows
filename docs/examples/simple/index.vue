@@ -1,20 +1,15 @@
 <template>
   <section class="simple-window-demo">
-    <button type="button" class="simple-window-demo__button" @click="windows.create({ title: '计数窗口', component: Child })">
+    <button type="button" class="simple-window-demo__button" @click="windows.create({title: 'Demo'})">
       打开窗口
     </button>
-    <Child/>
   </section>
 </template>
 
 <script setup lang="ts">
 import { useWindows } from 'vue3-windows'
-import { provide, ref } from 'vue'
-import Child from './count.vue'
 
-const count = ref(0)
-provide('count', count)
-const windows = useWindows({ global: true })
+const windows = useWindows()
 </script>
 
 <style scoped>

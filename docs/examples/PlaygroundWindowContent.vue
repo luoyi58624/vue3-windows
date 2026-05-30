@@ -10,7 +10,6 @@
         <button type="button" @click="currentWindow.minimize">最小化</button>
         <button type="button" @click="currentWindow.maximize">最大化</button>
         <button type="button" @click="currentWindow.restore">还原</button>
-        <button type="button" @click="currentWindow.hide">隐藏</button>
         <button type="button" @click="currentWindow.remove">关闭</button>
       </div>
     </header>
@@ -43,10 +42,11 @@
 
 <script setup lang="ts">
 import { useCurrentWindow } from 'vue3-windows'
+import type { WindowId } from 'vue3-windows'
 
 defineProps<{
   window: {
-    id: string
+    id: WindowId
     title: string
     note: string
     width: number

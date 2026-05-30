@@ -1,17 +1,14 @@
 import { getCurrentInstance, onMounted, onScopeDispose } from 'vue'
 
-import { useWindowsSetupOptions } from './setupWindows'
 import { useWindowsManager } from './useWindowsManager'
 import { mountWindowsRenderer, type WindowsRendererHandle } from './mountWindowsRenderer'
 import { captureWindowOwnerContext, withWindowOwnerContext } from './windowOwnerContext'
-import type { UseWindowsOptions, WindowAnchorTarget, WindowsRef } from '../types'
+import type { UseWindowsOptions, WindowsRef } from '../types'
 
 export function useWindowsController(
-  anchorTarget: WindowAnchorTarget | null,
   options: UseWindowsOptions = {},
 ): WindowsRef {
   const manager = useWindowsManager()
-  const setupOptions = useWindowsSetupOptions()
   const currentInstance = getCurrentInstance()
   let renderer: WindowsRendererHandle | null = null
 
@@ -29,11 +26,10 @@ export function useWindowsController(
   onMounted(() => {
     const ownerContext = getOwnerContext()
 
-    renderer = mountWindowsRenderer(manager, anchorTarget, {
+    renderer = mountWindowsRenderer(manager, {
       ...options,
       appContext: currentInstance?.appContext ?? null,
       ownerContext,
-      setupOptions,
       api,
     })
   })

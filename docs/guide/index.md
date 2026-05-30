@@ -12,7 +12,7 @@
 <script setup lang="ts">
 import { useWindows } from 'vue3-windows'
 
-const windows = useWindows({ global: true })
+const windows = useWindows()
 </script>
 
 <template>
@@ -31,7 +31,7 @@ const windows = useWindows({ global: true })
 import { defineComponent, ref } from 'vue'
 import { useCurrentWindow, useWindows } from 'vue3-windows'
 
-const windows = useWindows({ global: true })
+const windows = useWindows()
 
 const FormContent = defineComponent({
   setup() {

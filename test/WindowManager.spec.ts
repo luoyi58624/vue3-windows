@@ -1,22 +1,33 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent, h, nextTick, ref } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { useCurrentWindow, useWindows, WindowsDesktop } from '../src'
+import { useCurrentWindow, useWindows, windowSetup } from '../src'
+import type { WindowsRef } from '../src'
 
 const RUNTIME_KEY = '__window_dialog_runtime__'
-const RECT_KEY = '__window_dialog_last_rect__'
+
+const configReset = {
+  outsideClickBehavior: undefined,
+  width: undefined,
+  height: undefined,
+  minWidth: undefined,
+  minHeight: undefined,
+  maxWidth: undefined,
+  maxHeight: undefined,
+  minimizable: undefined,
+  maximizable: undefined,
+  closable: undefined,
+  accentType: undefined,
+  bgColor: undefined,
+}
 
 function resetWindowRuntime() {
   delete (globalThis as Record<string, unknown>)[RUNTIME_KEY]
-  window.localStorage.removeItem(RECT_KEY)
   document.body.innerHTML = ''
-}
-
-function wait(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
+  document.documentElement.style.overflow = ''
+  document.body.style.overflow = ''
+  windowSetup(configReset)
 }
 
 function findPanelByText(text: string) {
@@ -25,9 +36,9 @@ function findPanelByText(text: string) {
   ) as HTMLElement | undefined
 }
 
-function getManagedWindows(manager: ReturnType<typeof useWindows> | null) {
-  const windows = manager?.windows as unknown
-  return Array.isArray(windows) ? windows : manager?.windows.value ?? []
+async function flushWindows() {
+  await nextTick()
+  await nextTick()
 }
 
 const ActionWindow = defineComponent({
@@ -37,69 +48,15 @@ const ActionWindow = defineComponent({
 
     return () =>
       h('div', { class: 'action-window' }, [
-        h(
-          'button',
-          {
-            class: 'action-movetop',
-            type: 'button',
-            onClick: currentWindow.moveTop,
-          },
-          'moveTop',
-        ),
-        h(
-          'button',
-          {
-            class: 'action-maximize',
-            type: 'button',
-            onClick: currentWindow.maximize,
-          },
-          'maximize',
-        ),
-        h(
-          'button',
-          {
-            class: 'action-restore',
-            type: 'button',
-            onClick: currentWindow.restore,
-          },
-          'restore',
-        ),
-        h(
-          'button',
-          {
-            class: 'action-hide',
-            type: 'button',
-            onClick: currentWindow.hide,
-          },
-          'hide',
-        ),
-        h(
-          'button',
-          {
-            class: 'action-show',
-            type: 'button',
-            onClick: currentWindow.show,
-          },
-          'show',
-        ),
-        h(
-          'button',
-          {
-            class: 'action-minimize',
-            type: 'button',
-            onClick: currentWindow.minimize,
-          },
-          'minimize',
-        ),
-        h(
-          'button',
-          {
-            class: 'action-close',
-            type: 'button',
-            onClick: currentWindow.close,
-          },
-          'close',
-        ),
+        h('button', { class: 'action-maximize', type: 'button', onClick: currentWindow.maximize }, 'maximize'),
+        h('button', { class: 'action-restore', type: 'button', onClick: currentWindow.restore }, 'restore'),
+        h('button', { class: 'action-minimize', type: 'button', onClick: currentWindow.minimize }, 'minimize'),
+        h('button', {
+          class: 'action-update',
+          type: 'button',
+          onClick: () => currentWindow.update({ title: 'Updated' }),
+        }, 'update'),
+        h('button', { class: 'action-close', type: 'button', onClick: currentWindow.close }, 'close'),
       ])
   },
 })
@@ -113,206 +70,268 @@ const BindWindows = defineComponent({
     },
   },
   setup(props) {
-    props.bind()
-    return () => null
+    const windows = useWindows()
+    props.bind(windows)
+
+    return () => h('div')
   },
 })
 
-const Host = defineComponent({
-  name: 'UseCurrentWindowHost',
-  setup() {
-    const windows = ref<ReturnType<typeof useWindows> | null>(null)
-
-    function bindWindows() {
-      windows.value = useWindows()
-    }
-
-    function openFirst() {
-      windows.value?.create({
-        id: 'first',
-        title: 'First',
-        component: ActionWindow,
-      })
-    }
-
-    function openSecond() {
-      windows.value?.create({
-        id: 'second',
-        title: 'Second',
-        component: ActionWindow,
-      })
-    }
-
-    return {
-      windows,
-      bindWindows,
-      openFirst,
-      openSecond,
-    }
-  },
-  components: {
-    BindWindows,
-    WindowsDesktop,
-  },
-  template: `
-    <WindowsDesktop class="workspace">
-      <BindWindows :bind="bindWindows" />
-      <button class="open-first" type="button" @click="openFirst">open first</button>
-      <button class="open-second" type="button" @click="openSecond">open second</button>
-    </WindowsDesktop>
-  `,
-})
-
-describe('useCurrentWindow', () => {
+describe('window manager state', () => {
   beforeEach(() => {
     resetWindowRuntime()
   })
 
-  it('controls the current window from inside the content component', async () => {
-    const wrapper = mount(Host, {
-      attachTo: document.body,
+  it('minimizes without closing and restores through moveTop', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
     })
 
-    try {
-      await nextTick()
-      await nextTick()
+    await flushWindows()
+    windows?.create({
+      id: 'alpha',
+      title: 'Alpha',
+      component: ActionWindow,
+    })
+    await flushWindows()
 
-      await wrapper.get('.open-first').trigger('click')
-      await wrapper.get('.open-second').trigger('click')
-      await nextTick()
-      await nextTick()
+    expect(findPanelByText('Alpha')).toBeDefined()
 
-      const firstPanel = findPanelByText('First')
-      const secondPanel = findPanelByText('Second')
-      expect(firstPanel).toBeDefined()
-      expect(secondPanel).toBeDefined()
-      expect(firstPanel?.classList.contains('window-dialog--active')).toBe(false)
-      expect(secondPanel?.classList.contains('window-dialog--active')).toBe(true)
+    windows?.minimize('alpha')
+    await flushWindows()
 
-      const moveTopButton = firstPanel!.querySelector('.action-movetop') as HTMLButtonElement
-      moveTopButton.click()
-      await nextTick()
+    expect(windows?.get('alpha')?.state).toBe('minimized')
+    expect(windows?.windows.value).toHaveLength(1)
+    expect(findPanelByText('Alpha')).toBeUndefined()
 
-      expect(firstPanel?.classList.contains('window-dialog--active')).toBe(true)
-      expect(secondPanel?.classList.contains('window-dialog--active')).toBe(false)
-      expect(Number.parseInt(firstPanel!.style.zIndex, 10)).toBeGreaterThan(
-        Number.parseInt(secondPanel!.style.zIndex, 10),
-      )
+    windows?.moveTop('alpha')
+    await flushWindows()
 
-      const maximizeButton = firstPanel!.querySelector('.action-maximize') as HTMLButtonElement
-      maximizeButton.click()
-      await nextTick()
-      await wait(260)
-      await nextTick()
-
-      const maximizedPanel = findPanelByText('First')
-      expect(maximizedPanel?.classList.contains('window-dialog--maximized')).toBe(true)
-
-      const restoreButton = maximizedPanel!.querySelector('.action-restore') as HTMLButtonElement
-      restoreButton.click()
-      await nextTick()
-      await wait(260)
-      await nextTick()
-
-      const restoredPanel = findPanelByText('First')
-      expect(restoredPanel?.classList.contains('window-dialog--maximized')).toBe(false)
-
-      const closeButton = restoredPanel!.querySelector('.action-close') as HTMLButtonElement
-      closeButton.click()
-      await nextTick()
-
-      expect(getManagedWindows(wrapper.vm.windows)).toHaveLength(1)
-      expect(findPanelByText('First')).toBeUndefined()
-    } finally {
-      wrapper.unmount()
-    }
+    expect(windows?.get('alpha')?.state).toBe('normal')
+    expect(findPanelByText('Alpha')).toBeDefined()
   })
 
-  it('can hide and show the current window and minimize it into the local dock', async () => {
-    const wrapper = mount(Host, {
-      attachTo: document.body,
+  it('restores a maximized window back to maximized after minimize', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
     })
 
-    try {
-      await nextTick()
-      await nextTick()
+    await flushWindows()
+    windows?.create({
+      id: 'max',
+      title: 'Max',
+      component: ActionWindow,
+    })
+    await flushWindows()
 
-      await wrapper.get('.open-first').trigger('click')
-      await nextTick()
-      await nextTick()
+    windows?.setState('max', 'maximized')
+    await flushWindows()
+    windows?.setState('max', 'minimized')
+    await flushWindows()
 
-      const panel = findPanelByText('First')
-      expect(panel).toBeDefined()
+    expect(windows?.get('max')?.state).toBe('minimized')
 
-      const hideButton = panel!.querySelector('.action-hide') as HTMLButtonElement
-      hideButton.click()
-      await nextTick()
-      await wait(260)
-      await nextTick()
+    windows?.moveTop('max')
+    await flushWindows()
 
-      expect(findPanelByText('First')).toBeUndefined()
-      expect(getManagedWindows(wrapper.vm.windows)).toHaveLength(1)
-
-      wrapper.vm.windows?.show('first')
-      await nextTick()
-      await wait(260)
-      await nextTick()
-
-      const restoredPanel = findPanelByText('First')
-      expect(restoredPanel).toBeDefined()
-
-      const minimizeButton = restoredPanel!.querySelector('.action-minimize') as HTMLButtonElement
-      minimizeButton.click()
-      await nextTick()
-      await wait(260)
-      await nextTick()
-
-      const dock = wrapper.find('[data-vue3-windows-dock-track]').element.querySelector('.windows-dock-task') as HTMLElement | null
-
-      expect(dock).toBeDefined()
-      expect(dock?.textContent).toContain('First')
-      expect(findPanelByText('First')).toBeUndefined()
-    } finally {
-      wrapper.unmount()
-    }
+    expect(windows?.get('max')?.state).toBe('maximized')
+    expect(findPanelByText('Max')?.classList.contains('window-dialog--maximized')).toBe(true)
   })
 
-  it('restores a minimized window when moving it to the top', async () => {
-    const wrapper = mount(Host, {
-      attachTo: document.body,
+  it('restores a maximized window and keeps dragging from the title bar', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
     })
 
-    try {
-      await nextTick()
-      await nextTick()
+    await flushWindows()
+    windows?.create({
+      id: 'drag-max',
+      title: 'Drag Max',
+      component: ActionWindow,
+      width: 560,
+      height: 360,
+    })
+    await flushWindows()
 
-      await wrapper.get('.open-first').trigger('click')
-      await nextTick()
-      await nextTick()
+    windows?.setState('drag-max', 'maximized')
+    await flushWindows()
 
-      const panel = findPanelByText('First')
-      expect(panel).toBeDefined()
+    const panel = findPanelByText('Drag Max')
+    const header = panel?.querySelector<HTMLElement>('.window-dialog__header')
+    expect(header).toBeDefined()
 
-      const minimizeButton = panel!.querySelector('.action-minimize') as HTMLButtonElement
-      minimizeButton.click()
-      await nextTick()
-      await wait(260)
-      await nextTick()
+    header?.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      clientX: 480,
+      clientY: 20,
+    }))
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: 620,
+      clientY: 96,
+    }))
 
-      expect(findPanelByText('First')).toBeUndefined()
-      expect(wrapper.vm.windows?.get('first')?.state).toBe('minimized')
+    await flushWindows()
+    expect(document.body.querySelector('.window-dialog__resize-handle')).toBeNull()
 
-      wrapper.vm.windows?.moveTop('first')
-      await nextTick()
-      await wait(260)
-      await nextTick()
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+    await flushWindows()
 
-      const restoredPanel = findPanelByText('First')
-      expect(restoredPanel).toBeDefined()
-      expect(restoredPanel?.classList.contains('window-dialog--active')).toBe(true)
-      expect(wrapper.vm.windows?.get('first')?.state).toBe('normal')
-    } finally {
-      wrapper.unmount()
-    }
+    const windowRecord = windows?.get('drag-max')
+    expect(windowRecord?.state).toBe('normal')
+    expect(windowRecord?.rect?.left).toBeGreaterThan(250)
+    expect(windowRecord?.rect?.top).toBeGreaterThan(40)
+    expect(document.body.querySelector('.window-dialog__resize-handle')).not.toBeNull()
+  })
+
+  it('does not restore a maximized window on title bar click', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'click-max',
+      title: 'Click Max',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    windows?.setState('click-max', 'maximized')
+    await flushWindows()
+
+    const header = findPanelByText('Click Max')?.querySelector<HTMLElement>('.window-dialog__header')
+    expect(header).toBeDefined()
+
+    header?.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      clientX: 480,
+      clientY: 20,
+    }))
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+    await flushWindows()
+
+    expect(windows?.get('click-max')?.state).toBe('maximized')
+  })
+
+  it('toggles maximize and restore on title bar double click', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'double-click',
+      title: 'Double Click',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    const header = findPanelByText('Double Click')?.querySelector<HTMLElement>('.window-dialog__header')
+    expect(header).toBeDefined()
+
+    header?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    await flushWindows()
+    expect(windows?.get('double-click')?.state).toBe('maximized')
+
+    header?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    await flushWindows()
+    expect(windows?.get('double-click')?.state).toBe('normal')
+  })
+
+  it('maps outsideClickBehavior minimize to the minimized state', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'outside',
+      title: 'Outside',
+      component: ActionWindow,
+      outsideClickBehavior: 'minimize',
+    })
+    await flushWindows()
+
+    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+    await flushWindows()
+
+    expect(windows?.get('outside')?.state).toBe('minimized')
+    expect(findPanelByText('Outside')).toBeUndefined()
+  })
+
+  it('lets useCurrentWindow update state and close the current window', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'current',
+      title: 'Current',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    document.body.querySelector<HTMLButtonElement>('.action-maximize')?.click()
+    await flushWindows()
+    expect(windows?.get('current')?.state).toBe('maximized')
+
+    document.body.querySelector<HTMLButtonElement>('.action-restore')?.click()
+    await flushWindows()
+    expect(windows?.get('current')?.state).toBe('normal')
+
+    document.body.querySelector<HTMLButtonElement>('.action-update')?.click()
+    await flushWindows()
+    expect(windows?.get('current')?.title).toBe('Updated')
+
+    document.body.querySelector<HTMLButtonElement>('.action-minimize')?.click()
+    await flushWindows()
+    expect(windows?.get('current')?.state).toBe('minimized')
+    expect(findPanelByText('Updated')).toBeUndefined()
+
+    windows?.moveTop('current')
+    await flushWindows()
+    document.body.querySelector<HTMLButtonElement>('.action-close')?.click()
+    await flushWindows()
+
+    expect(windows?.get('current')).toBeUndefined()
   })
 })
