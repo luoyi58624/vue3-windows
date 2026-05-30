@@ -121,6 +121,12 @@ type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 type WindowAnimationMode = 'transform' | 'geometry'
 
 type WindowRect = WindowGeometry
+type WindowSizeLimits = {
+  minWidth: number
+  minHeight: number
+  maxWidth: number
+  maxHeight: number
+}
 
 type WindowRuntimeState = {
   openCount: number
@@ -308,10 +314,12 @@ const fadeEasing = ref(WINDOW_FADE_IN_EASING)
 
 let cleanupPointerTracking: (() => void) | null = null
 let cleanupEscapeTracking: (() => void) | null = null
+let panelResizeObserver: ResizeObserver | null = null
 let windowTransitionTimer: ReturnType<typeof window.setTimeout> | null = null
 let windowTransitionFrame = 0
 let windowTransitionVersion = 0
 let minimizeTransitionPending = false
+let geometryChangePending = false
 
 const isAutoHeightWindow = computed(() => props.height === undefined && !hasManualHeight.value)
 
@@ -392,13 +400,14 @@ const panelStyle = computed(() => {
 
   const viewport = getViewport()
   const limits = getSizeLimits(viewport)
+  const maxHeight = Math.max(limits.maxHeight, windowRect.height)
   const style: Record<string, string> = {
     ...accentVars.value,
     ...motionVars,
     left: `${windowRect.left}px`,
     top: `${windowRect.top}px`,
     width: `${windowRect.width}px`,
-    maxHeight: `${limits.maxHeight}px`,
+    maxHeight: `${maxHeight}px`,
     zIndex: String(zIndex.value + 1),
   }
 
@@ -543,15 +552,35 @@ watch(
     maximizeTarget.value,
   ] as const,
   () => {
-    emitGeometryChange()
+    scheduleGeometryChange()
   },
   { flush: 'post', immediate: true },
+)
+
+watch(
+  panelRef,
+  (panel, previousPanel) => {
+    if (!panelResizeObserver) {
+      return
+    }
+
+    if (previousPanel) {
+      panelResizeObserver.unobserve(previousPanel)
+    }
+
+    if (panel) {
+      panelResizeObserver.observe(panel)
+      scheduleGeometryChange()
+    }
+  },
+  { flush: 'post' },
 )
 
 onMounted(() => {
   resolvePanelTarget()
   resolveDockTarget()
   resolveMaximizeTarget()
+  startGeometryObserver()
   window.addEventListener(WINDOW_ACTIVE_EVENT, handleActiveWindowChange)
   document.addEventListener('pointerdown', handleDocumentPointerDown, true)
   if (visible.value) {
@@ -574,6 +603,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopPointerTracking()
   disableEscapeClose()
+  stopGeometryObserver()
   releaseDocumentScrollLock()
   unregisterOpenWindow()
   clearWindowTransition()
@@ -717,7 +747,13 @@ function startDrag(event: MouseEvent) {
     return
   }
 
-  const startRect = getCurrentWindowRect()
+  const measuredRect = getCurrentWindowRect()
+  const startRect = {
+    ...measuredRect,
+    width: windowRect.width,
+    height: windowRect.height,
+  }
+  const moveLimits = getPreservedSizeLimits(startRect)
   const startX = event.clientX
   const startY = event.clientY
 
@@ -726,7 +762,7 @@ function startDrag(event: MouseEvent) {
       ...startRect,
       left: startRect.left + moveEvent.clientX - startX,
       top: startRect.top + moveEvent.clientY - startY,
-    })
+    }, { limits: moveLimits })
   })
 }
 
@@ -945,7 +981,8 @@ function startResize(direction: ResizeDirection, event: MouseEvent) {
   bringToFront()
 
   const startRect = getCurrentWindowRect()
-  applyRect(startRect)
+  const resizeLimits = getResizeSizeLimits(startRect, direction)
+  applyRect(startRect, { limits: resizeLimits })
 
   if (direction.includes('n') || direction.includes('s')) {
     hasManualHeight.value = true
@@ -961,7 +998,9 @@ function startResize(direction: ResizeDirection, event: MouseEvent) {
         direction,
         moveEvent.clientX - startX,
         moveEvent.clientY - startY,
+        resizeLimits,
       ),
+      { limits: resizeLimits },
     )
   })
 }
@@ -1485,12 +1524,12 @@ function getCurrentWindowRect() {
     return { ...windowRect }
   }
 
-  return clampRect({
+  return {
     left: Math.round(rect.left),
     top: Math.round(rect.top),
     width: Math.round(rect.width),
     height: Math.round(rect.height),
-  })
+  }
 }
 
 function getRenderedWindowRect(): WindowRect {
@@ -1499,6 +1538,39 @@ function getRenderedWindowRect(): WindowRect {
   }
 
   return getCurrentWindowRect()
+}
+
+function startGeometryObserver() {
+  if (typeof ResizeObserver === 'undefined') {
+    return
+  }
+
+  panelResizeObserver = new ResizeObserver(() => {
+    scheduleGeometryChange()
+  })
+
+  if (panelRef.value) {
+    panelResizeObserver.observe(panelRef.value)
+    scheduleGeometryChange()
+  }
+}
+
+function stopGeometryObserver() {
+  panelResizeObserver?.disconnect()
+  panelResizeObserver = null
+  geometryChangePending = false
+}
+
+function scheduleGeometryChange() {
+  if (geometryChangePending) {
+    return
+  }
+
+  geometryChangePending = true
+  nextTick(() => {
+    geometryChangePending = false
+    emitGeometryChange()
+  })
 }
 
 function emitGeometryChange() {
@@ -1514,9 +1586,9 @@ function getResizedRect(
   direction: ResizeDirection,
   deltaX: number,
   deltaY: number,
+  limits: WindowSizeLimits = getSizeLimits(getViewport()),
 ): WindowRect {
   const viewport = getViewport()
-  const limits = getSizeLimits(viewport)
   const includesWest = direction.includes('w')
   const includesEast = direction.includes('e')
   const includesNorth = direction.includes('n')
@@ -1570,8 +1642,51 @@ function getResizedRect(
   }
 }
 
-function applyRect(nextRect: WindowRect, options: { persist?: boolean } = {}) {
-  const clampedRect = clampRect(nextRect)
+function getResizeSizeLimits(startRect: WindowRect, direction: ResizeDirection): WindowSizeLimits {
+  const viewport = getViewport()
+  const limits = getSizeLimits(viewport)
+  const includesWest = direction.includes('w')
+  const includesEast = direction.includes('e')
+  const includesNorth = direction.includes('n')
+  const includesSouth = direction.includes('s')
+  let maxWidth = limits.maxWidth
+  let maxHeight = limits.maxHeight
+
+  if (includesWest && !includesEast) {
+    const horizontalBounds = getHorizontalBounds(startRect.width, viewport.width)
+    maxWidth = Math.min(props.maxWidth ?? Number.POSITIVE_INFINITY, startRect.left + startRect.width - horizontalBounds.min)
+  }
+
+  if (includesNorth && !includesSouth) {
+    const verticalBounds = getVerticalBounds(viewport.height)
+    maxHeight = Math.min(props.maxHeight ?? Number.POSITIVE_INFINITY, startRect.top + startRect.height - verticalBounds.min)
+  }
+
+  return {
+    ...limits,
+    maxWidth,
+    maxHeight,
+    minWidth: clampValue(props.minWidth, 0, maxWidth),
+    minHeight: clampValue(props.minHeight, 0, maxHeight),
+  }
+}
+
+function getPreservedSizeLimits(rect: WindowRect): WindowSizeLimits {
+  const limits = getSizeLimits(getViewport())
+  const maxWidth = Math.max(limits.maxWidth, rect.width)
+  const maxHeight = Math.max(limits.maxHeight, rect.height)
+
+  return {
+    ...limits,
+    maxWidth,
+    maxHeight,
+    minWidth: clampValue(props.minWidth, 0, maxWidth),
+    minHeight: clampValue(props.minHeight, 0, maxHeight),
+  }
+}
+
+function applyRect(nextRect: WindowRect, options: { persist?: boolean, limits?: WindowSizeLimits } = {}) {
+  const clampedRect = clampRect(nextRect, options.limits)
   windowRect.left = clampedRect.left
   windowRect.top = clampedRect.top
   windowRect.width = clampedRect.width
@@ -1588,9 +1703,8 @@ function applyRect(nextRect: WindowRect, options: { persist?: boolean } = {}) {
   }
 }
 
-function clampRect(nextRect: WindowRect): WindowRect {
+function clampRect(nextRect: WindowRect, limits: WindowSizeLimits = getSizeLimits(getViewport())): WindowRect {
   const viewport = getViewport()
-  const limits = getSizeLimits(viewport)
   const width = clampValue(nextRect.width, limits.minWidth, limits.maxWidth)
   const height = clampValue(nextRect.height, limits.minHeight, limits.maxHeight)
   const horizontalBounds = getHorizontalBounds(width, viewport.width)

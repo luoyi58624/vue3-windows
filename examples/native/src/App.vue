@@ -13,6 +13,9 @@ const windows = useWindows()
     <button @click="windows.create({ title: 'Demo', component: Child })">
       打开窗口
     </button>
+    <button @click="windows.create({ id: 'demo', title: 'Demo', component: Child })">
+      打开窗口 - 固定 ID
+    </button>
   </div>
 </template>
 

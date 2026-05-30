@@ -860,6 +860,254 @@ describe('useWindows', () => {
     }
   })
 
+  it('keeps the north resize edge under the pointer when the window is near the viewport height', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'north-resize',
+        title: 'North Resize',
+        component: WindowContent,
+      })
+
+      await nextTick()
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('North Resize')
+      const northHandle = panel?.querySelector('.window-dialog__resize-handle--n') as HTMLElement | null
+      const startHeight = window.innerHeight - 32
+
+      expect(panel).toBeDefined()
+      expect(northHandle).toBeDefined()
+
+      panel!.getBoundingClientRect = () => ({
+        left: 120,
+        top: 80,
+        width: 560,
+        height: startHeight,
+        right: 680,
+        bottom: 80 + startHeight,
+        x: 120,
+        y: 80,
+        toJSON: () => ({}),
+      } as DOMRect)
+
+      northHandle!.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 240,
+        clientY: 80,
+      }))
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 240,
+        clientY: 0,
+      }))
+      await nextTick()
+
+      expect(panel?.style.top).toBe('0px')
+      expect(panel?.style.height).toBe(`${startHeight + 80}px`)
+    } finally {
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+      wrapper.unmount()
+    }
+  })
+
+  it('keeps the current size when dragging a window larger than the default viewport cap', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'drag-large-window',
+        title: 'Drag Large Window',
+        component: WindowContent,
+      })
+
+      await nextTick()
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Drag Large Window')
+      const header = panel?.querySelector('.window-dialog__header') as HTMLElement | null
+      const northHandle = panel?.querySelector('.window-dialog__resize-handle--n') as HTMLElement | null
+      const largeHeight = window.innerHeight + 40
+
+      expect(panel).toBeDefined()
+      expect(header).toBeDefined()
+      expect(northHandle).toBeDefined()
+
+      panel!.getBoundingClientRect = () => ({
+        left: 120,
+        top: 0,
+        width: 560,
+        height: largeHeight,
+        right: 680,
+        bottom: largeHeight,
+        x: 120,
+        y: 0,
+        toJSON: () => ({}),
+      } as DOMRect)
+
+      northHandle!.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 240,
+        clientY: 0,
+      }))
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+      await nextTick()
+
+      header!.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 240,
+        clientY: 20,
+      }))
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 260,
+        clientY: 40,
+      }))
+      await nextTick()
+
+      expect(panel?.style.height).toBe(`${largeHeight}px`)
+    } finally {
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+      wrapper.unmount()
+    }
+  })
+
+  it('does not rewrite the window size when the title bar is only clicked', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'title-click-size',
+        title: 'Title Click Size',
+        width: 560,
+        height: 420,
+        component: WindowContent,
+      })
+
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Title Click Size')
+      const header = panel?.querySelector('.window-dialog__header') as HTMLElement | null
+
+      expect(panel).toBeDefined()
+      expect(header).toBeDefined()
+      expect(panel?.style.width).toBe('560px')
+      expect(panel?.style.height).toBe('420px')
+
+      panel!.getBoundingClientRect = () => ({
+        left: 120,
+        top: 80,
+        width: 561,
+        height: 421,
+        right: 681,
+        bottom: 501,
+        x: 120,
+        y: 80,
+        toJSON: () => ({}),
+      } as DOMRect)
+
+      header!.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 240,
+        clientY: 100,
+      }))
+      await nextTick()
+
+      expect(panel?.style.width).toBe('560px')
+      expect(panel?.style.height).toBe('420px')
+    } finally {
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+      wrapper.unmount()
+    }
+  })
+
+  it('does not rewrite the window size from border-box measurements while dragging', async () => {
+    const wrapper = mount(Host, {
+      attachTo: document.body,
+    })
+
+    try {
+      await nextTick()
+      await nextTick()
+
+      wrapper.vm.windows?.create({
+        id: 'title-drag-size',
+        title: 'Title Drag Size',
+        width: 560,
+        height: 420,
+        component: WindowContent,
+      })
+
+      await nextTick()
+      await nextTick()
+
+      const panel = findPanelByText('Title Drag Size')
+      const header = panel?.querySelector('.window-dialog__header') as HTMLElement | null
+
+      expect(panel).toBeDefined()
+      expect(header).toBeDefined()
+      expect(panel?.style.width).toBe('560px')
+      expect(panel?.style.height).toBe('420px')
+
+      panel!.getBoundingClientRect = () => ({
+        left: 120,
+        top: 80,
+        width: 561,
+        height: 421,
+        right: 681,
+        bottom: 501,
+        x: 120,
+        y: 80,
+        toJSON: () => ({}),
+      } as DOMRect)
+
+      header!.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 240,
+        clientY: 100,
+      }))
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 260,
+        clientY: 120,
+      }))
+      await nextTick()
+
+      expect(panel?.style.width).toBe('560px')
+      expect(panel?.style.height).toBe('420px')
+    } finally {
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+      wrapper.unmount()
+    }
+  })
+
   it('does not run the visibility animation on first open', async () => {
     const wrapper = mount(VisibilityToggleHost, {
       attachTo: document.body,
