@@ -20,6 +20,7 @@ const configReset = {
   closable: undefined,
   accentType: undefined,
   bgColor: undefined,
+  zIndex: undefined,
 }
 
 function resetWindowRuntime() {

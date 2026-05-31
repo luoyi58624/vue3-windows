@@ -142,6 +142,7 @@ const HEADER_VISIBLE_HEIGHT = 44
 const DRAG_START_THRESHOLD = 4
 const MAXIMIZED_RESTORE_RIGHT_ANCHOR_WIDTH = 160
 const RESTORE_POINTER_GUTTER = 72
+const WINDOW_DEFAULT_Z_INDEX = 100
 
 const resizeDirections: ResizeDirection[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
 
@@ -195,6 +196,7 @@ const props = withDefaults(
     closeOnPressEscape?: boolean
     accentType?: AccentType
     bgColor?: string
+    zIndex?: number
     windowId?: WindowId
     initialRect?: WindowGeometry
     lastPosition?: WindowPosition
@@ -217,6 +219,7 @@ const props = withDefaults(
     closeOnPressEscape: true,
     accentType: 'primary',
     bgColor: undefined,
+    zIndex: WINDOW_DEFAULT_Z_INDEX,
   },
 )
 
@@ -237,7 +240,7 @@ const hasInitialized = ref(false)
 const hasManualHeight = ref(false)
 const isActiveWindow = ref(false)
 const panelTarget = ref<string | HTMLElement>('body')
-const zIndex = ref(nextWindowZIndex())
+const zIndex = ref(normalizeZIndexBase(props.zIndex))
 const viewportVersion = ref(0)
 
 const windowRect = reactive<WindowRect>({
@@ -322,6 +325,16 @@ watch(
   () => props.appendToBody,
   () => {
     resolvePanelTarget()
+  },
+)
+
+watch(
+  () => props.zIndex,
+  (nextZIndex) => {
+    const nextBaseZIndex = normalizeZIndexBase(nextZIndex)
+    if (zIndex.value < nextBaseZIndex) {
+      zIndex.value = nextWindowZIndex(nextBaseZIndex)
+    }
   },
 )
 
@@ -443,7 +456,10 @@ function createInitialRect() {
 }
 
 function bringToFront() {
-  zIndex.value = nextWindowZIndex()
+  const runtimeState = getWindowRuntimeState()
+  if (runtimeState.activeWindowId !== instanceId) {
+    zIndex.value = nextWindowZIndex(props.zIndex)
+  }
   syncActiveWindowRuntime()
 }
 
@@ -1054,10 +1070,19 @@ function clampValue(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
 }
 
-function nextWindowZIndex() {
+function nextWindowZIndex(baseZIndex = WINDOW_DEFAULT_Z_INDEX) {
   const runtimeState = getWindowRuntimeState()
+  runtimeState.zIndexSeed = Math.max(runtimeState.zIndexSeed, normalizeZIndexBase(baseZIndex) - 1)
   runtimeState.zIndexSeed += 1
   return runtimeState.zIndexSeed
+}
+
+function normalizeZIndexBase(value: number | undefined) {
+  if (value === undefined || !Number.isFinite(value)) {
+    return WINDOW_DEFAULT_Z_INDEX
+  }
+
+  return Math.trunc(value)
 }
 
 function getWindowRuntimeState(): WindowRuntimeState {
@@ -1067,7 +1092,7 @@ function getWindowRuntimeState(): WindowRuntimeState {
 
   runtimeHost[RUNTIME_KEY] ??= {
     activeWindowId: null,
-    zIndexSeed: 2000,
+    zIndexSeed: Number.NEGATIVE_INFINITY,
     documentScrollLockWindowIds: new Set<symbol>(),
     documentElementOverflow: null,
     bodyOverflow: null,

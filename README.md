@@ -19,6 +19,7 @@ windowSetup({
   width: 600,
   minWidth: 200,
   minHeight: 200,
+  zIndex: 100,
 })
 
 const windows = useWindows()

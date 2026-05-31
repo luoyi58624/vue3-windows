@@ -22,6 +22,7 @@ const configReset = {
   closable: undefined,
   accentType: undefined,
   bgColor: undefined,
+  zIndex: undefined,
 }
 
 function resetWindowRuntime() {
@@ -37,6 +38,10 @@ function findPanelByText(text: string) {
   return Array.from(document.body.querySelectorAll('.window-dialog')).find((panel) =>
     panel.textContent?.includes(text),
   ) as HTMLElement | undefined
+}
+
+function getLayerZIndex(panel: HTMLElement | undefined) {
+  return Number(panel?.closest<HTMLElement>('.window-dialog-layer')?.style.zIndex)
 }
 
 async function flushWindows() {
@@ -105,6 +110,7 @@ describe('useWindows rendering', () => {
       minimizable: false,
       closable: false,
       accentType: 'success',
+      zIndex: 300,
     })
 
     let windows: WindowsRef | null = null
@@ -116,6 +122,7 @@ describe('useWindows rendering', () => {
         options: {
           width: 640,
           maximizable: false,
+          zIndex: 200,
         },
       },
     })
@@ -127,16 +134,47 @@ describe('useWindows rendering', () => {
       component: BasicContent,
       width: 520,
       closable: true,
+      zIndex: 150,
     })
     await flushWindows()
 
-    const panel = findPanelByText('Priority content')
+    const panel = findPanelByText('Priority')
     expect(panel).toBeDefined()
     expect(panel?.style.width).toBe('520px')
     expect(panel?.style.height).toBe('410px')
     expect(panel?.querySelector('[aria-label="关闭"]')).not.toBeNull()
     expect(panel?.querySelector('[aria-label="最小化"]')).toBeNull()
     expect(panel?.querySelector('[aria-label="最大化"]')).toBeNull()
+    expect(getLayerZIndex(panel)).toBe(150)
+
+    windows?.create({
+      id: 'manager-z-index',
+      title: 'Manager Z Index',
+      component: BasicContent,
+    })
+    await flushWindows()
+
+    const managerPanel = findPanelByText('Manager Z Index')
+    expect(getLayerZIndex(managerPanel)).toBe(200)
+
+    let globalWindows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          globalWindows = api
+        },
+      },
+    })
+    await flushWindows()
+    globalWindows?.create({
+      id: 'global-z-index',
+      title: 'Global Z Index',
+      component: BasicContent,
+    })
+    await flushWindows()
+
+    const globalPanel = findPanelByText('Global Z Index')
+    expect(getLayerZIndex(globalPanel)).toBe(300)
   })
 
   it('uses default width and minimum size without forcing auto height', async () => {
@@ -162,6 +200,7 @@ describe('useWindows rendering', () => {
     expect(panel?.style.width).toBe('600px')
     expect(panel?.style.minHeight).toBe('200px')
     expect(panel?.style.height).toBe('')
+    expect(getLayerZIndex(panel)).toBe(100)
   })
 
   it('uses the default minWidth as the lower bound for window width', async () => {

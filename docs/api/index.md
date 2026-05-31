@@ -4,7 +4,9 @@
 
 设置全局默认配置。它会合并传入字段，`undefined` 字段会清除对应全局默认值。
 
-支持的默认配置：`outsideClickBehavior`、`width`、`height`、`minWidth`、`minHeight`、`maxWidth`、`maxHeight`、`minimizable`、`maximizable`、`closable`、`accentType`、`bgColor`。
+支持的默认配置：`outsideClickBehavior`、`width`、`height`、`minWidth`、`minHeight`、`maxWidth`、`maxHeight`、`minimizable`、`maximizable`、`closable`、`accentType`、`bgColor`、`zIndex`。
+
+`zIndex` 是窗口渲染层级的起始值，内置默认值为 `100`。多窗口置顶时会在该起始值基础上递增；如果需要避开 Element Plus 等组件库弹出层，通常保持默认值即可。
 
 配置优先级：`create(options)` > `useWindows(options)` > `windowSetup(options)` > 内置默认值。
 
@@ -49,6 +51,7 @@
 | `closable` | `boolean` | 是否显示关闭按钮。 |
 | `accentType` | `'primary' \| 'success' \| 'warning' \| 'danger' \| 'info'` | 窗口强调色。 |
 | `bgColor` | `string` | 窗口背景色。 |
+| `zIndex` | `number` | 窗口渲染层级的起始 z-index，默认 `100`；多窗口置顶时会在该值基础上递增。 |
 
 ### 窗口位置和尺寸记忆
 

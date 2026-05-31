@@ -64,6 +64,13 @@ export interface WindowOptions {
   accentType?: AccentType
   bgColor?: string
   /**
+   * 窗口渲染层级的起始 z-index。
+   *
+   * 该值会作为窗口层级种子的下限，内置默认值为 `100`；多窗口置顶时仍会在该值基础上递增。
+   * 优先级为 `create(options)` > `useWindows(options)` > `windowSetup(options)` > 内置默认值。
+   */
+  zIndex?: number
+  /**
    * 窗口内容组件。
    *
    * 如果省略该字段且 `id` 是 Vue 组件对象，则会默认使用 `id` 作为窗口内容组件。
@@ -123,6 +130,10 @@ export interface WindowsConfig {
   closable?: boolean
   accentType?: AccentType
   bgColor?: string
+  /**
+   * 窗口渲染层级的起始 z-index，内置默认值为 `100`。
+   */
+  zIndex?: number
 }
 
 export interface UseWindowsOptions extends WindowsConfig {

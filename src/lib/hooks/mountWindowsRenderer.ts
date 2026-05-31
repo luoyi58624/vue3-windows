@@ -63,6 +63,7 @@ export function mountWindowsRenderer(
           const closable = windowRecord.closable ?? options.closable ?? globalOptions.closable
           const accentType = windowRecord.accentType ?? options.accentType ?? globalOptions.accentType
           const bgColor = windowRecord.bgColor ?? options.bgColor ?? globalOptions.bgColor
+          const zIndex = windowRecord.zIndex ?? options.zIndex ?? globalOptions.zIndex
 
           return h(Window, {
             key: getWindowRenderKey(windowRecord.id),
@@ -84,6 +85,7 @@ export function mountWindowsRenderer(
             closable,
             accentType,
             bgColor,
+            zIndex,
             onMinimize: () => manager.updateWindowState(windowRecord.id, 'minimized'),
             onMaximize: () => manager.updateWindowState(windowRecord.id, 'maximized'),
             onRestore: () => manager.updateWindowState(windowRecord.id, 'normal'),
