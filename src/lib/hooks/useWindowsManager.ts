@@ -26,9 +26,14 @@ type PersistedWindowGeometryState = {
   last_position?: WindowPosition | null
   windows_record?: Record<string, WindowGeometry>
 }
+type PersistedWindowGeometryStore = PersistedWindowGeometryState & {
+  version?: number
+  groups?: Record<string, PersistedWindowGeometryState | undefined>
+}
 
 const WINDOW_GEOMETRY_STORAGE_KEY = 'vue3-windows:geometry'
-const WINDOW_GEOMETRY_STORAGE_KEY_PREFIX = `${WINDOW_GEOMETRY_STORAGE_KEY}:`
+const WINDOW_GEOMETRY_STORE_VERSION = 2
+const DEFAULT_GEOMETRY_GROUP_KEY = 'default'
 
 export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[]>([]), groupId?: WindowsGroupId) {
   const windowRefs = new Map<WindowId, WindowExpose>()
@@ -383,13 +388,27 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     }
 
     try {
-      const rawValue = storage.getItem(getGeometryStorageKey())
+      const rawValue = storage.getItem(WINDOW_GEOMETRY_STORAGE_KEY)
       if (!rawValue) {
-        return null
+        return readLegacyGroupGeometryState(storage)
       }
 
       const value = JSON.parse(rawValue) as unknown
-      return value && typeof value === 'object' ? value as PersistedWindowGeometryState : null
+      if (!value || typeof value !== 'object') {
+        return readLegacyGroupGeometryState(storage)
+      }
+
+      const store = value as PersistedWindowGeometryStore
+      const groupState = store.groups?.[getGeometryGroupKey()]
+      if (groupState) {
+        return groupState
+      }
+
+      if (groupId === undefined && isPersistedWindowGeometryState(store)) {
+        return store
+      }
+
+      return readLegacyGroupGeometryState(storage)
     } catch {
       return null
     }
@@ -407,13 +426,13 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     }
 
     try {
-      storage.setItem(
-        getGeometryStorageKey(),
-        JSON.stringify({
-          last_position: geometryState.last_position,
-          windows_record,
-        }),
-      )
+      const store = readGeometryStore(storage)
+      store.groups ??= {}
+      store.groups[getGeometryGroupKey()] = {
+        last_position: geometryState.last_position,
+        windows_record,
+      }
+      storage.setItem(WINDOW_GEOMETRY_STORAGE_KEY, JSON.stringify(store))
     } catch {
       // localStorage can be unavailable or full; the in-memory cache remains usable.
     }
@@ -431,16 +450,68 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     }
   }
 
-  function getGeometryStorageKey() {
+  function getGeometryGroupKey() {
     if (groupId === undefined) {
-      return WINDOW_GEOMETRY_STORAGE_KEY
+      return DEFAULT_GEOMETRY_GROUP_KEY
     }
 
-    return `${WINDOW_GEOMETRY_STORAGE_KEY_PREFIX}${serializeGeometryGroupId(groupId)}`
+    return serializeGeometryGroupId(groupId)
   }
 
   function serializeGeometryGroupId(id: WindowsGroupId) {
     return `${typeof id}:${String(id)}`
+  }
+
+  function readGeometryStore(storage: Storage): PersistedWindowGeometryStore {
+    const rawValue = storage.getItem(WINDOW_GEOMETRY_STORAGE_KEY)
+    const parsed = parsePersistedGeometryStore(rawValue)
+    const groups: Record<string, PersistedWindowGeometryState | undefined> = {
+      ...(isPersistedWindowGeometryState(parsed) ? { [DEFAULT_GEOMETRY_GROUP_KEY]: parsed } : {}),
+      ...(parsed?.groups ?? {}),
+    }
+
+    const legacyGroupState = readLegacyGroupGeometryState(storage)
+    if (legacyGroupState && !groups[getGeometryGroupKey()]) {
+      groups[getGeometryGroupKey()] = legacyGroupState
+    }
+
+    return {
+      version: WINDOW_GEOMETRY_STORE_VERSION,
+      groups,
+    }
+  }
+
+  function readLegacyGroupGeometryState(storage: Storage): PersistedWindowGeometryState | null {
+    if (groupId === undefined) {
+      return null
+    }
+
+    const legacyValue = parsePersistedGeometryStore(
+      storage.getItem(`${WINDOW_GEOMETRY_STORAGE_KEY}:${serializeGeometryGroupId(groupId)}`),
+    )
+    return isPersistedWindowGeometryState(legacyValue) ? legacyValue : null
+  }
+
+  function parsePersistedGeometryStore(value: string | null): PersistedWindowGeometryStore | null {
+    if (!value) {
+      return null
+    }
+
+    try {
+      const parsed = JSON.parse(value) as unknown
+      return parsed && typeof parsed === 'object' ? parsed as PersistedWindowGeometryStore : null
+    } catch {
+      return null
+    }
+  }
+
+  function isPersistedWindowGeometryState(value: unknown): value is PersistedWindowGeometryState {
+    if (!value || typeof value !== 'object') {
+      return false
+    }
+
+    const state = value as PersistedWindowGeometryState
+    return state.last_position !== undefined || state.windows_record !== undefined
   }
 
   function isWindowPosition(value: unknown): value is WindowPosition {

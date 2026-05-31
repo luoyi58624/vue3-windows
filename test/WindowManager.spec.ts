@@ -472,7 +472,10 @@ describe('window manager state', () => {
     firstWrapper.unmount()
     await flushWindows()
 
-    expect(window.localStorage.getItem('vue3-windows:geometry:string:first')).toContain('string:shared-window')
+    const storageValue = window.localStorage.getItem('vue3-windows:geometry')
+    expect(storageValue).toContain('string:first')
+    expect(storageValue).toContain('string:shared-window')
+    expect(window.localStorage.getItem('vue3-windows:geometry:string:first')).toBeNull()
 
     let secondWindows: WindowsRef | null = null
     const secondWrapper = mount(BindGroupedWindows, {
