@@ -2,6 +2,7 @@
 
 此页面由 `bun run release` 在发布时根据 git commit message 自动生成。
 
+- `1672fec` 2026-05-31 - feat: add optional windows group id
 - `a69c79b` 2026-05-31 - fix: adjust default window sizing
 - `d808309` 2026-05-30 - fix: Improve the window status
 - `132e350` 2026-05-30 - feat: Remove dock、animate，Simplified Window API
