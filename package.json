@@ -1,7 +1,7 @@
 {
   "name": "vue3-windows",
   "private": false,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "description": "Lightweight hook-driven window manager for Vue 3.",
   "repository": {
