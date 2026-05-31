@@ -36,12 +36,14 @@ type PersistedWindowGeometryStore = {
 const WINDOW_GEOMETRY_STORAGE_KEY = 'vue3-windows:geometry'
 const WINDOW_GEOMETRY_STORE_VERSION = 3
 const DEFAULT_GEOMETRY_GROUP_KEY = 'global'
+const GEOMETRY_PERSIST_DEBOUNCE_DELAY = 120
 
 export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[]>([]), groupId?: WindowsGroupId) {
   const windowRefs = new Map<WindowId, WindowExpose>()
   const restoreStates = new Map<WindowId, RestorableWindowState>()
   const geometryState = createGeometryState()
   let nextWindowId = 1
+  let geometryPersistTimer: ReturnType<typeof window.setTimeout> | null = null
 
   const api: WindowsRef = {
     windows: model,
@@ -122,9 +124,11 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
   }
 
   function closeAll() {
+    flushGeometryState()
     restoreStates.clear()
     windowRefs.clear()
     model.value = []
+    cleanupGeometryPersist()
   }
 
   function minimize(id: WindowId) {
@@ -407,6 +411,33 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
       return
     }
 
+    registerGeometryPersistCleanup()
+    if (geometryPersistTimer) {
+      window.clearTimeout(geometryPersistTimer)
+    }
+
+    geometryPersistTimer = window.setTimeout(() => {
+      geometryPersistTimer = null
+      writeGeometryState(storage)
+    }, GEOMETRY_PERSIST_DEBOUNCE_DELAY)
+  }
+
+  function flushGeometryState() {
+    if (!geometryPersistTimer) {
+      return
+    }
+
+    window.clearTimeout(geometryPersistTimer)
+    geometryPersistTimer = null
+    const storage = getGeometryStorage()
+    if (!storage) {
+      return
+    }
+
+    writeGeometryState(storage)
+  }
+
+  function writeGeometryState(storage: Storage) {
     const windows_record: Record<string, WindowGeometry> = {}
     for (const [id, rect] of geometryState.windows_record) {
       windows_record[id] = { ...rect }
@@ -422,6 +453,25 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     } catch {
       // localStorage can be unavailable or full; the in-memory cache remains usable.
     }
+  }
+
+  function cleanupGeometryPersist() {
+    if (geometryPersistTimer) {
+      window.clearTimeout(geometryPersistTimer)
+      geometryPersistTimer = null
+    }
+    if (typeof window === 'undefined') {
+      return
+    }
+    window.removeEventListener('beforeunload', flushGeometryState)
+  }
+
+  function registerGeometryPersistCleanup() {
+    if (typeof window === 'undefined') {
+      return
+    }
+    window.removeEventListener('beforeunload', flushGeometryState)
+    window.addEventListener('beforeunload', flushGeometryState)
   }
 
   function getGeometryStorage() {

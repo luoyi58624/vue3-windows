@@ -56,6 +56,10 @@ async function flushWindows() {
   await nextTick()
 }
 
+async function waitForGeometryPersist() {
+  await new Promise((resolve) => window.setTimeout(resolve, 150))
+}
+
 const ActionWindow = defineComponent({
   name: 'ActionWindow',
   setup() {
@@ -460,6 +464,35 @@ describe('window manager state', () => {
     expect(secondWindows?.get('persisted-window')?.rect).toEqual(firstRect)
   })
 
+  it('debounces geometry writes to localStorage', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'debounced-window',
+      title: 'Debounced Window',
+      component: ActionWindow,
+      width: 520,
+      height: 330,
+    })
+    await flushWindows()
+
+    expect(window.localStorage.getItem('vue3-windows:geometry')).toBeNull()
+
+    await waitForGeometryPersist()
+
+    const rect = { ...windows!.get('debounced-window')!.rect! }
+    const store = readGeometryStore()
+    expect(store.windows_record.global['string:debounced-window']).toEqual(rect)
+  })
+
   it('isolates cached geometry by useWindows group id', async () => {
     let firstWindows: WindowsRef | null = null
     const firstWrapper = mount(BindGroupedWindows, {
@@ -513,6 +546,7 @@ describe('window manager state', () => {
 
     expect(secondWindows?.get('shared-window')?.rect?.width).not.toBe(firstRect.width)
     const secondRect = { ...secondWindows!.get('shared-window')!.rect! }
+    await waitForGeometryPersist()
     const secondStore = readGeometryStore()
     expect(secondStore.windows_record.user['string:shared-window']).toEqual(firstRect)
     expect(secondStore.windows_record.menu['string:shared-window']).toEqual(secondRect)
@@ -609,6 +643,8 @@ describe('window manager state', () => {
       width: 560,
       height: 360,
     })
+
+    await waitForGeometryPersist()
 
     const store = readGeometryStore()
     expect(store.version).toBe(3)
