@@ -45,6 +45,12 @@ function findPanelByText(text: string) {
   ) as HTMLElement | undefined
 }
 
+function readGeometryStore() {
+  const value = window.localStorage.getItem('vue3-windows:geometry')
+  expect(value).not.toBeNull()
+  return JSON.parse(value!)
+}
+
 async function flushWindows() {
   await nextTick()
   await nextTick()
@@ -67,6 +73,13 @@ const ActionWindow = defineComponent({
         }, 'update'),
         h('button', { class: 'action-close', type: 'button', onClick: currentWindow.close }, 'close'),
       ])
+  },
+})
+
+const AddWindow = defineComponent({
+  name: 'add',
+  setup() {
+    return () => h('div', 'Add Window')
   },
 })
 
@@ -451,7 +464,7 @@ describe('window manager state', () => {
     let firstWindows: WindowsRef | null = null
     const firstWrapper = mount(BindGroupedWindows, {
       props: {
-        groupId: 'first',
+        groupId: 'user',
         bind: (api: WindowsRef) => {
           firstWindows = api
         },
@@ -472,15 +485,18 @@ describe('window manager state', () => {
     firstWrapper.unmount()
     await flushWindows()
 
-    const storageValue = window.localStorage.getItem('vue3-windows:geometry')
-    expect(storageValue).toContain('string:first')
-    expect(storageValue).toContain('string:shared-window')
-    expect(window.localStorage.getItem('vue3-windows:geometry:string:first')).toBeNull()
+    const firstStore = readGeometryStore()
+    expect(firstStore.version).toBe(3)
+    expect(firstStore.windows_record.first).toBeUndefined()
+    expect(firstStore.windows_record.user['string:shared-window']).toEqual(firstRect)
+    expect(firstStore.windows_record['string:user']).toBeUndefined()
+    expect(firstStore.windows_record['string:shared-window']).toBeUndefined()
+    expect(window.localStorage.getItem('vue3-windows:geometry:string:user')).toBeNull()
 
     let secondWindows: WindowsRef | null = null
     const secondWrapper = mount(BindGroupedWindows, {
       props: {
-        groupId: 'second',
+        groupId: 'menu',
         bind: (api: WindowsRef) => {
           secondWindows = api
         },
@@ -496,13 +512,17 @@ describe('window manager state', () => {
     await flushWindows()
 
     expect(secondWindows?.get('shared-window')?.rect?.width).not.toBe(firstRect.width)
+    const secondRect = { ...secondWindows!.get('shared-window')!.rect! }
+    const secondStore = readGeometryStore()
+    expect(secondStore.windows_record.user['string:shared-window']).toEqual(firstRect)
+    expect(secondStore.windows_record.menu['string:shared-window']).toEqual(secondRect)
     secondWrapper.unmount()
     await flushWindows()
 
     let reopenedFirstWindows: WindowsRef | null = null
     mount(BindGroupedWindows, {
       props: {
-        groupId: 'first',
+        groupId: 'user',
         bind: (api: WindowsRef) => {
           reopenedFirstWindows = api
         },
@@ -518,6 +538,83 @@ describe('window manager state', () => {
     await flushWindows()
 
     expect(reopenedFirstWindows?.get('shared-window')?.rect).toEqual(firstRect)
+  })
+
+  it('stores ungrouped window geometry under the global group', async () => {
+    let windows: WindowsRef | null = null
+    const wrapper = mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'global-window',
+      title: 'Global Window',
+      component: ActionWindow,
+      width: 520,
+      height: 330,
+    })
+    await flushWindows()
+
+    const rect = { ...windows!.get('global-window')!.rect! }
+    wrapper.unmount()
+    await flushWindows()
+
+    const store = readGeometryStore()
+    expect(store.windows_record.global['string:global-window']).toEqual(rect)
+    expect(store.windows_record['string:global-window']).toBeUndefined()
+  })
+
+  it('moves flat cached geometry into the active useWindows group', async () => {
+    window.localStorage.setItem(
+      'vue3-windows:geometry',
+      JSON.stringify({
+        last_position: { left: 198, top: 194 },
+        windows_record: {
+          'component:add': {
+            left: 198,
+            top: 194,
+            width: 560,
+            height: 360,
+          },
+        },
+      }),
+    )
+
+    let windows: WindowsRef | null = null
+    mount(BindGroupedWindows, {
+      props: {
+        groupId: 'user',
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: AddWindow,
+      title: 'Grouped Component',
+    })
+    await flushWindows()
+
+    const record = windows?.get(AddWindow)
+    expect(record?.rect).toEqual({
+      left: 198,
+      top: 194,
+      width: 560,
+      height: 360,
+    })
+
+    const store = readGeometryStore()
+    expect(store.version).toBe(3)
+    expect(store.windows_record.user['component:add']).toEqual(record?.rect)
+    expect(store.windows_record['component:add']).toBeUndefined()
+    expect(store.windows_record.global?.['component:add']).toBeUndefined()
   })
 
   it('reopens an existing minimized window through create with the same id', async () => {
