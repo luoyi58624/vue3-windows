@@ -12,7 +12,11 @@
 
 创建当前组件作用域内的窗口管理器。组件卸载时，该管理器创建的窗口会自动关闭并清理渲染节点。
 
-`options` 用于设置当前 manager 的默认窗口配置，字段和 `windowSetup()` 相同。
+默认直接调用 `useWindows()` 即可。需要分组时，可以额外传入可选的 `id`：`useWindows('groupId')`。
+
+`id` 是当前 manager 的窗口分组标识，可传 `string` 或 `number`。不同分组会使用独立的窗口位置和同 id 几何缓存。
+
+`options` 用于设置当前 manager 的默认窗口配置，字段和 `windowSetup()` 相同；分组也可以写成 `useWindows({ id, ...options })`。
 
 返回的 `WindowsRef`：
 
@@ -48,7 +52,7 @@
 
 ### 窗口位置和尺寸记忆
 
-每个 `useWindows()` manager 内部维护一个窗口几何状态，并持久化到 `localStorage` 的 `vue3-windows:geometry`：
+每个 `useWindows()` manager 内部维护一个窗口几何状态。未传分组时持久化到 `localStorage` 的 `vue3-windows:geometry`；传分组时持久化到 `vue3-windows:geometry:<type>:<id>`：
 
 ```ts
 {

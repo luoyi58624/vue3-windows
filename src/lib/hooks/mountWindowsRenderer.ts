@@ -104,6 +104,9 @@ export function mountWindowsRenderer(
   })
 
   renderRoot.setAttribute('data-vue3-windows-renderer', '')
+  if (options.id !== undefined) {
+    renderRoot.setAttribute('data-vue3-windows-group', String(options.id))
+  }
   document.body.appendChild(renderRoot)
 
   const vnode = h(Renderer)

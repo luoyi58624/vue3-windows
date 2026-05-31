@@ -1,7 +1,16 @@
 import { markRaw, nextTick, ref, type Ref } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 
-import type { WindowGeometry, WindowId, WindowOptions, WindowOutsideClickBehavior, WindowRecord, WindowsRef, WindowState } from '../types'
+import type {
+  WindowGeometry,
+  WindowId,
+  WindowOptions,
+  WindowOutsideClickBehavior,
+  WindowRecord,
+  WindowsGroupId,
+  WindowsRef,
+  WindowState,
+} from '../types'
 
 type ManagedWindowState = WindowState
 type WindowExpose = ComponentPublicInstance & {
@@ -19,8 +28,9 @@ type PersistedWindowGeometryState = {
 }
 
 const WINDOW_GEOMETRY_STORAGE_KEY = 'vue3-windows:geometry'
+const WINDOW_GEOMETRY_STORAGE_KEY_PREFIX = `${WINDOW_GEOMETRY_STORAGE_KEY}:`
 
-export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[]>([])) {
+export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[]>([]), groupId?: WindowsGroupId) {
   const windowRefs = new Map<WindowId, WindowExpose>()
   const restoreStates = new Map<WindowId, RestorableWindowState>()
   const geometryState = createGeometryState()
@@ -373,7 +383,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     }
 
     try {
-      const rawValue = storage.getItem(WINDOW_GEOMETRY_STORAGE_KEY)
+      const rawValue = storage.getItem(getGeometryStorageKey())
       if (!rawValue) {
         return null
       }
@@ -397,10 +407,13 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     }
 
     try {
-      storage.setItem(WINDOW_GEOMETRY_STORAGE_KEY, JSON.stringify({
-        last_position: geometryState.last_position,
-        windows_record,
-      }))
+      storage.setItem(
+        getGeometryStorageKey(),
+        JSON.stringify({
+          last_position: geometryState.last_position,
+          windows_record,
+        }),
+      )
     } catch {
       // localStorage can be unavailable or full; the in-memory cache remains usable.
     }
@@ -416,6 +429,18 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     } catch {
       return null
     }
+  }
+
+  function getGeometryStorageKey() {
+    if (groupId === undefined) {
+      return WINDOW_GEOMETRY_STORAGE_KEY
+    }
+
+    return `${WINDOW_GEOMETRY_STORAGE_KEY_PREFIX}${serializeGeometryGroupId(groupId)}`
+  }
+
+  function serializeGeometryGroupId(id: WindowsGroupId) {
+    return `${typeof id}:${String(id)}`
   }
 
   function isWindowPosition(value: unknown): value is WindowPosition {

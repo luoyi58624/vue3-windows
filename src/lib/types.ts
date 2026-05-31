@@ -7,6 +7,13 @@ export type WindowState = 'normal' | 'minimized' | 'maximized'
 export type WindowOutsideClickBehavior = 'none' | 'minimize' | 'remove'
 
 /**
+ * 窗口分组标识。
+ *
+ * 传给 `useWindows()` 后用于隔离同一组窗口的运行时缓存，例如不同页面可以用不同分组避免同名窗口复用几何信息。
+ */
+export type WindowsGroupId = number | string
+
+/**
  * 窗口唯一标识。
  *
  * 可以传字符串、数字或 Vue 组件对象。传组件对象时，该组件对象会作为窗口单例 id；
@@ -118,4 +125,11 @@ export interface WindowsConfig {
   bgColor?: string
 }
 
-export interface UseWindowsOptions extends WindowsConfig {}
+export interface UseWindowsOptions extends WindowsConfig {
+  /**
+   * 窗口分组标识。
+   *
+   * 同一个分组内，窗口会共享最近位置和同 id 窗口的几何缓存；不同分组之间互不影响。
+   */
+  id?: WindowsGroupId
+}

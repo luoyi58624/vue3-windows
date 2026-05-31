@@ -5,10 +5,8 @@ import { mountWindowsRenderer, type WindowsRendererHandle } from './mountWindows
 import { captureWindowOwnerContext, withWindowOwnerContext } from './windowOwnerContext'
 import type { UseWindowsOptions, WindowsRef } from '../types'
 
-export function useWindowsController(
-  options: UseWindowsOptions = {},
-): WindowsRef {
-  const manager = useWindowsManager()
+export function useWindowsController(options: UseWindowsOptions = {}): WindowsRef {
+  const manager = useWindowsManager(undefined, options.id)
   const currentInstance = getCurrentInstance()
   let renderer: WindowsRendererHandle | null = null
 

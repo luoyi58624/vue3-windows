@@ -4,6 +4,7 @@ export type {
   AccentType,
   UseWindowsOptions,
   WindowsConfig,
+  WindowsGroupId,
   WindowId,
   WindowOptions,
   WindowOutsideClickBehavior,

@@ -27,7 +27,15 @@ function resetWindowRuntime() {
   document.body.innerHTML = ''
   document.documentElement.style.overflow = ''
   document.body.style.overflow = ''
-  window.localStorage.removeItem('vue3-windows:geometry')
+  for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+    const key = window.localStorage.key(index)
+    if (!key) {
+      continue
+    }
+    if (key === 'vue3-windows:geometry' || key.startsWith('vue3-windows:geometry:')) {
+      window.localStorage.removeItem(key)
+    }
+  }
   windowSetup(configReset)
 }
 
@@ -86,6 +94,26 @@ const BindWindows = defineComponent({
   },
   setup(props) {
     const windows = useWindows()
+    props.bind(windows)
+
+    return () => h('div')
+  },
+})
+
+const BindGroupedWindows = defineComponent({
+  name: 'BindGroupedWindows',
+  props: {
+    bind: {
+      type: Function,
+      required: true,
+    },
+    groupId: {
+      type: [String, Number],
+      required: true,
+    },
+  },
+  setup(props) {
+    const windows = useWindows(props.groupId)
     props.bind(windows)
 
     return () => h('div')
@@ -417,6 +445,76 @@ describe('window manager state', () => {
     await flushWindows()
 
     expect(secondWindows?.get('persisted-window')?.rect).toEqual(firstRect)
+  })
+
+  it('isolates cached geometry by useWindows group id', async () => {
+    let firstWindows: WindowsRef | null = null
+    const firstWrapper = mount(BindGroupedWindows, {
+      props: {
+        groupId: 'first',
+        bind: (api: WindowsRef) => {
+          firstWindows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    firstWindows?.create({
+      id: 'shared-window',
+      title: 'First Group',
+      component: ActionWindow,
+      width: 520,
+      height: 330,
+    })
+    await flushWindows()
+
+    const firstRect = { ...firstWindows!.get('shared-window')!.rect! }
+    firstWrapper.unmount()
+    await flushWindows()
+
+    expect(window.localStorage.getItem('vue3-windows:geometry:string:first')).toContain('string:shared-window')
+
+    let secondWindows: WindowsRef | null = null
+    const secondWrapper = mount(BindGroupedWindows, {
+      props: {
+        groupId: 'second',
+        bind: (api: WindowsRef) => {
+          secondWindows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    secondWindows?.create({
+      id: 'shared-window',
+      title: 'Second Group',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    expect(secondWindows?.get('shared-window')?.rect?.width).not.toBe(firstRect.width)
+    secondWrapper.unmount()
+    await flushWindows()
+
+    let reopenedFirstWindows: WindowsRef | null = null
+    mount(BindGroupedWindows, {
+      props: {
+        groupId: 'first',
+        bind: (api: WindowsRef) => {
+          reopenedFirstWindows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    reopenedFirstWindows?.create({
+      id: 'shared-window',
+      title: 'First Group Reopen',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    expect(reopenedFirstWindows?.get('shared-window')?.rect).toEqual(firstRect)
   })
 
   it('reopens an existing minimized window through create with the same id', async () => {
