@@ -2,6 +2,7 @@
 
 此页面由 `bun run release` 在发布时根据 git commit message 自动生成。
 
+- `3a9007b` 2026-05-31 - feat: add zIndex config
 - `4b508d2` 2026-05-31 - fix: debounce grouped geometry persistence
 - `a4ad345` 2026-05-31 - fix: nest window geometry records by group
 - `ac5b7d2` 2026-05-31 - fix: store grouped window geometry in one key
