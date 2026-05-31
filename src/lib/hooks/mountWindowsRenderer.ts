@@ -46,7 +46,7 @@ export function mountWindowsRenderer(
           const outsideClickBehavior = windowRecord.outsideClickBehavior ?? options.outsideClickBehavior ?? globalOptions.outsideClickBehavior
           const cachedGeometry = manager.getCachedWindowGeometry(windowRecord.id)
           const width = windowRecord.width ?? cachedGeometry?.width ?? options.width ?? globalOptions.width
-          const height = windowRecord.height ?? cachedGeometry?.height ?? options.height ?? globalOptions.height
+          const height = windowRecord.height ?? options.height ?? globalOptions.height
           const initialRect = windowRecord.rect ?? (cachedGeometry
             ? {
                 ...cachedGeometry,

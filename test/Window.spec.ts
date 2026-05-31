@@ -139,6 +139,56 @@ describe('useWindows rendering', () => {
     expect(panel?.querySelector('[aria-label="最大化"]')).toBeNull()
   })
 
+  it('uses default width and minimum size without forcing auto height', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'default-size',
+      title: 'Default Size',
+      component: BasicContent,
+    })
+    await flushWindows()
+
+    const panel = findPanelByText('Priority content')
+    expect(panel).toBeDefined()
+    expect(panel?.style.width).toBe('600px')
+    expect(panel?.style.minHeight).toBe('200px')
+    expect(panel?.style.height).toBe('')
+  })
+
+  it('uses the default minWidth as the lower bound for window width', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'min-width',
+      title: 'Min Width',
+      component: BasicContent,
+      width: 120,
+    })
+    await flushWindows()
+
+    const panel = findPanelByText('Priority content')
+    expect(panel).toBeDefined()
+    expect(panel?.style.width).toBe('200px')
+    expect(panel?.style.height).toBe('')
+  })
+
   it('allows a window component to be used as the window id', async () => {
     let windows: WindowsRef | null = null
     mount(BindWindows, {

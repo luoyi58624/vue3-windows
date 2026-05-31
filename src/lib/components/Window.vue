@@ -132,7 +132,7 @@ type WindowRuntimeState = {
 
 const RUNTIME_KEY = '__window_dialog_runtime__'
 const WINDOW_ACTIVE_EVENT = 'vue3-windows-active-window'
-const WINDOW_DEFAULT_WIDTH = 560
+const WINDOW_DEFAULT_WIDTH = 600
 const WINDOW_DEFAULT_HEIGHT = 360
 const WINDOW_OPEN_OFFSET = 28
 const VIEWPORT_MARGIN = 16
@@ -203,8 +203,8 @@ const props = withDefaults(
     title: '',
     state: 'normal',
     outsideClickBehavior: 'none',
-    minWidth: 360,
-    minHeight: 300,
+    minWidth: 200,
+    minHeight: 200,
     maxWidth: Number.POSITIVE_INFINITY,
     modal: false,
     draggable: true,

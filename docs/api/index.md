@@ -38,7 +38,7 @@
 | `state` | `'normal' \| 'minimized' \| 'maximized'` | 初始状态，默认 `normal`。 |
 | `outsideClickBehavior` | `'none' \| 'minimize' \| 'remove'` | 点击窗口外部时的行为，默认 `none`。 |
 | `width` / `height` | `number` | 初始窗口尺寸。 |
-| `minWidth` / `minHeight` | `number` | 最小窗口尺寸，默认 `360` / `300`。 |
+| `minWidth` / `minHeight` | `number` | 最小窗口尺寸，默认 `200` / `200`。 |
 | `maxWidth` / `maxHeight` | `number` | 最大窗口尺寸。 |
 | `minimizable` | `boolean` | 是否显示最小化按钮。 |
 | `maximizable` | `boolean` | 是否显示最大化按钮。 |

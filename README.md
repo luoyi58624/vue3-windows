@@ -16,8 +16,9 @@ import { defineComponent, h } from 'vue'
 import { useCurrentWindow, useWindows, windowSetup } from 'vue3-windows'
 
 windowSetup({
-  width: 560,
-  height: 360,
+  width: 600,
+  minWidth: 200,
+  minHeight: 200,
 })
 
 const windows = useWindows()
