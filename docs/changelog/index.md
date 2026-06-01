@@ -2,6 +2,7 @@
 
 此页面由 `bun run release` 在发布时根据 git commit message 自动生成。
 
+- `873e6e0` 2026-06-01 - feat: add window listen
 - `4b092da` 2026-06-01 - fix: Resolve the bug of window cache
 - `f00cb3e` 2026-06-01 - fix: Update the id rollback strategy
 - `3a9007b` 2026-05-31 - feat: add zIndex config
