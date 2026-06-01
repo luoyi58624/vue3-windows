@@ -360,6 +360,27 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     return namedComponent.name ?? namedComponent.__name ?? null
   }
 
+  function normalizePersistedStorageId(
+    storageId: string,
+    records: Record<string, WindowGeometry>,
+  ) {
+    if (!storageId.startsWith('component:')) {
+      return storageId
+    }
+
+    const componentName = storageId.slice('component:'.length)
+    if (!componentName) {
+      return null
+    }
+
+    const stringStorageId = `string:${componentName}`
+    if (stringStorageId in records) {
+      return null
+    }
+
+    return stringStorageId
+  }
+
   function createGeometryState(): WindowGeometryState {
     const state: WindowGeometryState = {
       last_position: null,
@@ -377,7 +398,10 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     if (persistedState.windows_record && typeof persistedState.windows_record === 'object') {
       for (const [id, rect] of Object.entries(persistedState.windows_record)) {
         if (isWindowGeometry(rect)) {
-          state.windows_record.set(id, { ...rect })
+          const normalizedStorageId = normalizePersistedStorageId(id, persistedState.windows_record)
+          if (normalizedStorageId) {
+            state.windows_record.set(normalizedStorageId, { ...rect })
+          }
         }
       }
     }

@@ -49,6 +49,30 @@ async function flushWindows() {
   await nextTick()
 }
 
+async function waitForGeometryPersist() {
+  await new Promise((resolve) => window.setTimeout(resolve, 150))
+}
+
+async function resizeWindow(panel: HTMLElement, deltaX: number, deltaY: number) {
+  const handle = panel.querySelector<HTMLElement>('.window-dialog__resize-handle--se')
+  expect(handle).not.toBeNull()
+
+  handle!.dispatchEvent(new MouseEvent('mousedown', {
+    bubbles: true,
+    button: 0,
+    clientX: 600,
+    clientY: 260,
+  }))
+  document.dispatchEvent(new MouseEvent('mousemove', {
+    bubbles: true,
+    clientX: 600 + deltaX,
+    clientY: 260 + deltaY,
+  }))
+  await flushWindows()
+  document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+  await flushWindows()
+}
+
 const BasicContent = defineComponent({
   name: 'BasicContent',
   setup() {
@@ -268,6 +292,79 @@ describe('useWindows rendering', () => {
 
     expect(windows?.get('BasicContent')).toBeUndefined()
     expect(windows?.windows.value).toHaveLength(0)
+  })
+
+  it('restores a title-only window cached width and height after close and reopen', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({ title: 'Demo' })
+    await flushWindows()
+
+    const panel = findPanelByText('Demo')
+    expect(panel).toBeDefined()
+    await resizeWindow(panel!, 120, 90)
+
+    const resizedRect = { ...windows!.get('Demo')!.rect! }
+    expect(resizedRect.width).toBeGreaterThan(600)
+    expect(resizedRect.height).toBeGreaterThan(200)
+
+    windows?.close('Demo')
+    await flushWindows()
+    windows?.create({ title: 'Demo' })
+    await flushWindows()
+
+    const reopenedPanel = findPanelByText('Demo')
+    expect(reopenedPanel?.style.width).toBe(`${resizedRect.width}px`)
+    expect(reopenedPanel?.style.height).toBe(`${resizedRect.height}px`)
+  })
+
+  it('restores a title-only window cached size across manager remount', async () => {
+    let firstWindows: WindowsRef | null = null
+    const firstWrapper = mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          firstWindows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    firstWindows?.create({ title: 'Demo' })
+    await flushWindows()
+
+    const firstPanel = findPanelByText('Demo')
+    expect(firstPanel).toBeDefined()
+    await resizeWindow(firstPanel!, 80, 70)
+
+    const resizedRect = { ...firstWindows!.get('Demo')!.rect! }
+    await waitForGeometryPersist()
+    firstWrapper.unmount()
+    await flushWindows()
+
+    let secondWindows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          secondWindows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    secondWindows?.create({ title: 'Demo' })
+    await flushWindows()
+
+    const reopenedPanel = findPanelByText('Demo')
+    expect(reopenedPanel?.style.width).toBe(`${resizedRect.width}px`)
+    expect(reopenedPanel?.style.height).toBe(`${resizedRect.height}px`)
   })
 
   it('keeps Vue provide and inject available inside created window content', async () => {

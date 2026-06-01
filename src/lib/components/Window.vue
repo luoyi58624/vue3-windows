@@ -425,6 +425,11 @@ function initializeWindow() {
     return
   }
 
+  // 有缓存 rect 且本次没有显式 height 时，也要按缓存高度恢复，不能继续走 auto-height。
+  if (props.initialRect && props.height === undefined) {
+    hasManualHeight.value = true
+  }
+
   applyRect(createInitialRect())
   hasInitialized.value = true
 }
