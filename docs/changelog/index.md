@@ -2,6 +2,7 @@
 
 此页面由 `bun run release` 在发布时根据 git commit message 自动生成。
 
+- `f00cb3e` 2026-06-01 - fix: Update the id rollback strategy
 - `3a9007b` 2026-05-31 - feat: add zIndex config
 - `4b508d2` 2026-05-31 - fix: debounce grouped geometry persistence
 - `a4ad345` 2026-05-31 - fix: nest window geometry records by group
