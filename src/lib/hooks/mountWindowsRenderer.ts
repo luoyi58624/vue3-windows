@@ -14,7 +14,6 @@ import { getWindowSetupConfig } from './setupWindows'
 import { createAppContextWithOwnerContext, type WindowOwnerContext } from './windowOwnerContext'
 
 type WindowsManager = ReturnType<typeof useWindowsManager>
-const renderKeyByWindowId = new WeakMap<object, symbol>()
 
 export interface WindowsRendererOptions extends UseWindowsOptions {
   appContext?: AppContext | null
@@ -130,16 +129,5 @@ export function mountWindowsRenderer(
 }
 
 function getWindowRenderKey(id: WindowsManager['model']['value'][number]['id']) {
-  if (typeof id === 'string' || typeof id === 'number') {
-    return id
-  }
-
-  const objectId = id as object
-  let renderKey = renderKeyByWindowId.get(objectId)
-  if (!renderKey) {
-    renderKey = Symbol('vue3-windows-window')
-    renderKeyByWindowId.set(objectId, renderKey)
-  }
-
-  return renderKey
+  return id
 }

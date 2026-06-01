@@ -67,10 +67,9 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
   }
 
   function create(options: WindowOptions = {}) {
-    const hasExplicitId = options.id !== undefined
-    const id = normalizeWindowId(options.id ?? createWindowId())
-    const existing = hasExplicitId ? get(id) : undefined
-    const component = resolveWindowComponent(id, options.component)
+    const id = resolveCreateWindowId(options)
+    const existing = get(id)
+    const component = resolveWindowComponent(options.component)
 
     if (existing) {
       const previousState = existing.state
@@ -96,7 +95,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     const windowRecord: WindowRecord = {
       ...options,
       id,
-      title: options.title ?? getDefaultWindowTitle(id, component),
+      title: options.title ?? getDefaultWindowTitle(id),
       state: options.state ?? 'normal',
       component: component ? markRaw(component) : component,
     }
@@ -159,7 +158,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
   }
 
   function get(id: WindowId) {
-    return model.value.find((windowRecord) => windowRecord.id === normalizeWindowId(id))
+    return model.value.find((windowRecord) => windowRecord.id === id)
   }
 
   function update(id: WindowId, patch: Partial<WindowOptions>) {
@@ -311,51 +310,50 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     return 'normal'
   }
 
-  function normalizeWindowId(id: WindowId): WindowId {
-    if (isObjectWindowId(id)) {
-      return markRaw(id) as WindowId
-    }
-
-    return id
-  }
-
   function getStorageWindowId(id: WindowId) {
-    const normalizedId = normalizeWindowId(id)
-    if (typeof normalizedId === 'string') {
-      return `string:${normalizedId}`
+    if (typeof id === 'string') {
+      return `string:${id}`
     }
 
-    if (typeof normalizedId === 'number') {
-      return `number:${normalizedId}`
+    if (typeof id === 'number') {
+      return `number:${id}`
     }
 
-    const componentName = getComponentName(normalizedId)
-    return componentName ? `component:${componentName}` : null
+    return null
   }
 
-  function isObjectWindowId(id: WindowId): id is Extract<WindowId, object> {
-    return (typeof id === 'object' && id !== null) || typeof id === 'function'
-  }
-
-  function resolveWindowComponent(id: WindowId, component: WindowOptions['component']) {
-    if (component) {
-      return component
+  function resolveCreateWindowId(options: WindowOptions): WindowId {
+    if (options.id !== undefined && options.id !== null) {
+      return options.id
     }
 
-    return isObjectWindowId(id) ? id : undefined
-  }
-
-  function getDefaultWindowTitle(id: WindowId, component: WindowOptions['component']) {
-    if (typeof id === 'string' || typeof id === 'number') {
-      return String(id)
+    const componentId = getComponentName(options.component)
+    if (componentId !== null) {
+      return componentId
     }
 
-    return getComponentName(id) ?? getComponentName(component) ?? 'Window'
+    if (options.title !== undefined) {
+      return options.title
+    }
+
+    return createWindowId()
+  }
+
+  function resolveWindowComponent(component: WindowOptions['component']) {
+    return component
+  }
+
+  function getDefaultWindowTitle(id: WindowId) {
+    return String(id)
   }
 
   function getComponentName(component: WindowOptions['component']) {
-    if (!component || typeof component === 'string') {
+    if (!component) {
       return null
+    }
+
+    if (typeof component === 'string') {
+      return component
     }
 
     const namedComponent = component as { name?: string, __name?: string }

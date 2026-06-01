@@ -144,6 +144,89 @@ describe('window manager state', () => {
     scrollWindowMounts = 0
   })
 
+  it('uses the component name as the effective id when create id is null', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    const first = windows?.create({
+      id: null,
+      title: 'Component Id',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    expect(first?.id).toBe('ActionWindow')
+    expect(windows?.get('ActionWindow')?.title).toBe('Component Id')
+
+    const second = windows?.create({
+      id: null,
+      title: 'Component Id Updated',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    expect(second?.id).toBe('ActionWindow')
+    expect(windows?.windows.value).toHaveLength(1)
+    expect(windows?.get('ActionWindow')?.title).toBe('Component Id Updated')
+  })
+
+  it('uses the title as the effective id when id and component are empty', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    const first = windows?.create({
+      title: 'Title Id',
+    })
+    await flushWindows()
+
+    expect(first?.id).toBe('Title Id')
+    expect(windows?.get('Title Id')?.title).toBe('Title Id')
+
+    const second = windows?.create({
+      title: 'Title Id',
+      width: 520,
+    })
+    await flushWindows()
+
+    expect(second?.id).toBe('Title Id')
+    expect(windows?.windows.value).toHaveLength(1)
+    expect(windows?.get('Title Id')?.width).toBe(520)
+  })
+
+  it('falls back to the global increment id when id component and title are empty', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    const first = windows?.create()
+    const second = windows?.create()
+    await flushWindows()
+
+    expect(first?.id).toBe(1)
+    expect(second?.id).toBe(2)
+    expect(windows?.windows.value).toHaveLength(2)
+  })
+
   it('minimizes without closing and restores through moveTop', async () => {
     let windows: WindowsRef | null = null
     mount(BindWindows, {
@@ -610,7 +693,7 @@ describe('window manager state', () => {
       JSON.stringify({
         last_position: { left: 198, top: 194 },
         windows_record: {
-          'component:add': {
+          'string:add': {
             left: 198,
             top: 194,
             width: 560,
@@ -632,12 +715,13 @@ describe('window manager state', () => {
 
     await flushWindows()
     windows?.create({
-      id: AddWindow,
+      id: null,
+      component: AddWindow,
       title: 'Grouped Component',
     })
     await flushWindows()
 
-    const record = windows?.get(AddWindow)
+    const record = windows?.get('add')
     expect(record?.rect).toEqual({
       left: 198,
       top: 194,
@@ -649,9 +733,9 @@ describe('window manager state', () => {
 
     const store = readGeometryStore()
     expect(store.version).toBe(3)
-    expect(store.windows_record.user['component:add']).toEqual(record?.rect)
-    expect(store.windows_record['component:add']).toBeUndefined()
-    expect(store.windows_record.global?.['component:add']).toBeUndefined()
+    expect(store.windows_record.user['string:add']).toEqual(record?.rect)
+    expect(store.windows_record['string:add']).toBeUndefined()
+    expect(store.windows_record.global?.['string:add']).toBeUndefined()
   })
 
   it('reopens an existing minimized window through create with the same id', async () => {

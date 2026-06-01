@@ -228,7 +228,7 @@ describe('useWindows rendering', () => {
     expect(panel?.style.height).toBe('')
   })
 
-  it('allows a window component to be used as the window id', async () => {
+  it('uses the component name as the effective id when create id is null', async () => {
     let windows: WindowsRef | null = null
     mount(BindWindows, {
       props: {
@@ -240,31 +240,33 @@ describe('useWindows rendering', () => {
 
     await flushWindows()
     const first = windows?.create({
-      id: BasicContent,
+      id: null,
       title: 'Component Singleton',
+      component: BasicContent,
     })
     await flushWindows()
 
-    expect(first?.id).toBe(BasicContent)
+    expect(first?.id).toBe('BasicContent')
     expect(first?.component).toBe(BasicContent)
-    expect(windows?.get(BasicContent)?.title).toBe('Component Singleton')
+    expect(windows?.get('BasicContent')?.title).toBe('Component Singleton')
     expect(findPanelByText('Priority content')).toBeDefined()
 
     const second = windows?.create({
-      id: BasicContent,
+      id: null,
       title: 'Component Singleton Updated',
+      component: BasicContent,
     })
     await flushWindows()
 
-    expect(second?.id).toBe(BasicContent)
+    expect(second?.id).toBe('BasicContent')
     expect(second?.component).toBe(BasicContent)
     expect(windows?.windows.value).toHaveLength(1)
-    expect(windows?.get(BasicContent)?.title).toBe('Component Singleton Updated')
+    expect(windows?.get('BasicContent')?.title).toBe('Component Singleton Updated')
 
-    windows?.close(BasicContent)
+    windows?.close('BasicContent')
     await flushWindows()
 
-    expect(windows?.get(BasicContent)).toBeUndefined()
+    expect(windows?.get('BasicContent')).toBeUndefined()
     expect(windows?.windows.value).toHaveLength(0)
   })
 

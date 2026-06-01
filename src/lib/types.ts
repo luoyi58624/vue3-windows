@@ -16,10 +16,10 @@ export type WindowsGroupId = number | string
 /**
  * 窗口唯一标识。
  *
- * 可以传字符串、数字或 Vue 组件对象。传组件对象时，该组件对象会作为窗口单例 id；
- * 如果 `create()` 没有同时传 `component`，该组件也会被用作窗口内容组件。
+ * 仅支持字符串或数字。省略或传 `null` / `undefined` 时，
+ * `create()` 会按 `component -> title -> 全局自增` 生成实际 id。
  */
-export type WindowId = number | string | Component
+export type WindowId = number | string
 
 export interface WindowGeometry {
   left: number
@@ -36,9 +36,9 @@ export interface WindowOptions {
    * 如果已有窗口处于 `minimized`，且本次没有显式传 `state`，窗口会按最小化前的
    * `normal` / `maximized` 状态重新显示。
    *
-   * 当 id 是 Vue 组件对象且没有传 `component` 时，该组件会被当作窗口内容组件渲染。
+   * 当 `id` 为空时，会按 `component -> title -> 全局自增` 生成实际 id。
    */
-  id?: WindowId
+  id?: WindowId | null
   title?: string
   state?: WindowState
   outsideClickBehavior?: WindowOutsideClickBehavior
@@ -73,8 +73,8 @@ export interface WindowOptions {
   /**
    * 窗口内容组件。
    *
-   * 如果省略该字段且 `id` 是 Vue 组件对象，则会默认使用 `id` 作为窗口内容组件。
-   * 如果同时传入 `id` 组件和 `component`，则以显式传入的 `component` 为准。
+   * 当 `id` 为空时，会优先尝试用组件名作为实际 id；
+   * 组件没有可用名称时，再回退到 `title` 或全局自增 id。
    */
   component?: Component
   props?: Record<string, unknown>
@@ -104,8 +104,7 @@ export interface WindowsRef {
    * 传入已有 id 时会更新已有窗口；如果该窗口处于 `minimized` 且本次没有显式传 `state`，
    * 会恢复到最小化前的 `normal` / `maximized` 状态。
    *
-   * `options.id` 可以直接传 Vue 组件对象。此时如果没有传 `options.component`，
-   * 该组件会被作为窗口内容组件渲染。
+   * `options.id` 为空时，会按 `component -> title -> 全局自增` 推导实际 id。
    */
   create(options?: WindowOptions): WindowRecord
   close(id: WindowId): void

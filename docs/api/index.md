@@ -37,7 +37,7 @@
 
 | Option | Type | Description |
 | --- | --- | --- |
-| `id` | `string \| number \| Component` | Optional. 省略时自动生成递增 id；传组件对象时可把窗口内容组件作为单例窗口 id 使用。 |
+| `id` | `string \| number \| null` | Optional. 传入时直接作为窗口 id；为空时按 `component -> title -> 全局自增` 推导实际 id。 |
 | `title` | `string` | 窗口标题。 |
 | `component` | `Component` | 窗口内容组件。 |
 | `props` | `Record<string, unknown>` | 传给内容组件的 props。 |
@@ -77,24 +77,25 @@
 - `windows_record` 先按分组存储，再按序列化后的 `id` 记录该窗口最近一次 `normal` 状态的位置和宽高。关闭页面并刷新后，再次用同一个分组和同一个 `id` 创建窗口，会从 `localStorage` 复用这份位置和尺寸。
 - `create(options)` 显式传入的 `width` / `height` 优先于 `windows_record` 缓存尺寸，但位置仍复用同 `id` 的缓存位置。
 - 最大化渲染出的全屏尺寸不会写入 `windows_record`，也不会覆盖 `WindowRecord.rect`。
-- `string` / `number` id 会完整持久化；组件 id 会使用组件 `name` / `__name` 作为持久化 key，匿名组件无法跨刷新稳定恢复。
+- `string` / `number` id 会完整持久化；当 `id` 为空且回退到 `component` 时，会使用组件 `name` / `__name` 作为实际 id 和持久化 key，匿名组件会继续回退到 `title` 或全局自增。
 
-### 组件作为 `id`
+### `id` 为空时的推导规则
 
-`id` 可以直接传 Vue 组件对象：
+当 `id` 为 `null` 或 `undefined` 时，`create()` 会按下面的顺序推导实际 id：
 
 ```ts
 windows.create({
-  id: DetailWindow,
+  id: null,
+  component: DetailWindow,
 })
 ```
 
 此时规则如下：
 
-- 如果没有传 `component`，会默认用 `id` 这个组件作为窗口内容组件。
-- 如果同时传了 `id` 组件和 `component`，显式传入的 `component` 优先。
-- 同一个组件对象再次作为 `id` 传入时，会更新已有窗口，不会创建第二个窗口。
-- 对应的 `get()`、`close()`、`minimize()`、`moveTop()`、`setState()` 也都可以直接传这个组件对象。
+- 优先使用 `component` 的 `name` / `__name` 作为实际 id。
+- 如果 `component` 没有可用名称，则回退到 `title`。
+- 如果 `title` 也为空，则回退到全局自增数字 id。
+- 推导出的实际 id 仍然是 `string` 或 `number`，后续 `get()`、`close()`、`minimize()`、`moveTop()`、`setState()` 也都用这个实际 id。
 
 ## `useCurrentWindow()`
 
