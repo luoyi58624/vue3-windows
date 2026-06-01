@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { defineComponent, h, inject, isRef, nextTick, provide, ref, type InjectionKey, type Ref } from 'vue'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useCurrentWindow, useWindows, windowSetup } from '../src'
 import type { UseWindowsOptions, WindowsRef } from '../src'
@@ -118,6 +118,18 @@ const WindowChangeWatcherContent = defineComponent({
 
     return () =>
       h('div', { class: 'window-change-log' }, changeLog.value.join(' / '))
+  },
+})
+
+const FragmentWindowContent = defineComponent({
+  name: 'FragmentWindowContent',
+  setup() {
+    const currentWindow = useCurrentWindow()
+
+    return () => [
+      h('div', { class: 'fragment-window-title' }, currentWindow.window.value.title),
+      h('div', { class: 'fragment-window-state' }, currentWindow.window.value.state),
+    ]
   },
 })
 
@@ -491,5 +503,41 @@ describe('useWindows rendering', () => {
     await flushWindows()
 
     expect(log?.textContent).toContain('maximized|Watch Window=>maximized|Watch Window Updated')
+  })
+
+  it('does not warn for fragment window content when internal attrs are not declared props', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let windows: WindowsRef | null = null
+
+    try {
+      mount(BindWindows, {
+        props: {
+          bind: (api: WindowsRef) => {
+            windows = api
+          },
+        },
+      })
+
+      await flushWindows()
+      windows?.create({
+        id: 'fragment-window',
+        title: 'Fragment Window',
+        component: FragmentWindowContent,
+      })
+      await flushWindows()
+
+      expect(document.body.querySelector('.fragment-window-title')?.textContent).toBe('Fragment Window')
+      expect(
+        warnSpy.mock.calls.some((args) =>
+          args.some(
+            (value) =>
+              typeof value === 'string'
+              && value.includes('Extraneous non-props attributes (window, api, minimizedCount, totalCount)'),
+          ),
+        ),
+      ).toBe(false)
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 })

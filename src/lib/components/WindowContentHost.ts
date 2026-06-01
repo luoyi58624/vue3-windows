@@ -51,10 +51,12 @@ export default defineComponent({
       if (props.windowRecord.component) {
         return h(props.windowRecord.component, {
           ...props.windowRecord.props,
-          window: props.windowRecord,
-          api: props.api,
-          minimizedCount: props.minimizedCount,
-          totalCount: props.totalCount,
+          ...resolveWindowComponentInjectedProps(props.windowRecord.component, {
+            window: props.windowRecord,
+            api: props.api,
+            minimizedCount: props.minimizedCount,
+            totalCount: props.totalCount,
+          }),
         })
       }
 
@@ -62,3 +64,34 @@ export default defineComponent({
     }
   },
 })
+
+function resolveWindowComponentInjectedProps(
+  component: WindowRecord['component'],
+  injectedProps: Record<string, unknown>,
+) {
+  const declaredPropNames = getDeclaredPropNames(component)
+  if (declaredPropNames.size === 0) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(injectedProps).filter(([key]) => declaredPropNames.has(key)),
+  )
+}
+
+function getDeclaredPropNames(component: WindowRecord['component']) {
+  if (!component || typeof component === 'string') {
+    return new Set<string>()
+  }
+
+  const propOptions = (component as { props?: unknown }).props
+  if (Array.isArray(propOptions)) {
+    return new Set(propOptions)
+  }
+
+  if (propOptions && typeof propOptions === 'object') {
+    return new Set(Object.keys(propOptions as Record<string, unknown>))
+  }
+
+  return new Set<string>()
+}
