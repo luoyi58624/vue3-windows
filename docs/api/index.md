@@ -104,3 +104,20 @@ windows.create({
 可操作当前窗口的 `close`、`remove`、`minimize`、`maximize`、`restore`、`moveTop`、`setState` 和 `update`。
 
 当前窗口记录通过 `currentWindow.window.value` 读取，例如 `currentWindow.window.value.title`。运行时 `normal` 状态的位置和尺寸在 `currentWindow.window.value.rect`；最大化渲染出的全屏尺寸不会覆盖它，所以 `maximized -> minimized -> 恢复最大化 -> 还原` 会回到原来的 `normal` 尺寸。
+
+`useCurrentWindow()` 还提供 `watchWindow()`，用于在窗口内容组件内部监听当前窗口变化。
+
+```ts
+const currentWindow = useCurrentWindow()
+
+currentWindow.watchWindow(
+  (window) => window.state,
+  (state, previousState) => {
+    console.log(previousState, state)
+  },
+  { immediate: true },
+)
+```
+
+- `watchWindow(listener, options?)`：默认监听整个 `windowRecord`，默认 `deep: true`
+- `watchWindow(selector, listener, options?)`：先投影出某个字段或计算值，再监听该值变化

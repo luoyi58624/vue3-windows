@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, h, inject, isRef, nextTick, provide, ref, type InjectionKey, type Ref } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { useWindows, windowSetup } from '../src'
+import { useCurrentWindow, useWindows, windowSetup } from '../src'
 import type { UseWindowsOptions, WindowsRef } from '../src'
 
 const RUNTIME_KEY = '__window_dialog_runtime__'
@@ -99,6 +99,25 @@ const InjectedContent = defineComponent({
         },
         `${message}: ${count.value}`,
       )
+  },
+})
+
+const WindowChangeWatcherContent = defineComponent({
+  name: 'WindowChangeWatcherContent',
+  setup() {
+    const currentWindow = useCurrentWindow()
+    const changeLog = ref<string[]>([])
+
+    currentWindow.watchWindow(
+      (window) => `${window.state}|${window.title}`,
+      (value, previousValue) => {
+        changeLog.value.push(`${previousValue ?? 'init'}=>${value}`)
+      },
+      { immediate: true },
+    )
+
+    return () =>
+      h('div', { class: 'window-change-log' }, changeLog.value.join(' / '))
   },
 })
 
@@ -440,5 +459,37 @@ describe('useWindows rendering', () => {
 
     expect(wrapper.vm.count).toBe(1)
     expect(button?.textContent).toContain('late: 1')
+  })
+
+  it('allows window content to watch current window changes', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'watch-window',
+      title: 'Watch Window',
+      component: WindowChangeWatcherContent,
+    })
+    await flushWindows()
+
+    const log = document.body.querySelector<HTMLElement>('.window-change-log')
+    expect(log?.textContent).toContain('init=>normal|Watch Window')
+
+    windows?.setState('watch-window', 'maximized')
+    await flushWindows()
+
+    expect(log?.textContent).toContain('normal|Watch Window=>maximized|Watch Window')
+
+    windows?.update('watch-window', { title: 'Watch Window Updated' })
+    await flushWindows()
+
+    expect(log?.textContent).toContain('maximized|Watch Window=>maximized|Watch Window Updated')
   })
 })
