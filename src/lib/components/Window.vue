@@ -914,9 +914,10 @@ function getResizedRect(
   direction: ResizeDirection,
   deltaX: number,
   deltaY: number,
-  limits: WindowSizeLimits = getSizeLimits(getViewport()),
+  limits?: WindowSizeLimits,
 ): WindowRect {
   const viewport = getViewport()
+  const resolvedLimits = limits ?? getSizeLimits(viewport)
   const includesWest = direction.includes('w')
   const includesEast = direction.includes('e')
   const includesNorth = direction.includes('n')
@@ -928,21 +929,21 @@ function getResizedRect(
   let height = startRect.height
 
   if (includesEast) {
-    width = clampValue(startRect.width + deltaX, limits.minWidth, limits.maxWidth)
+    width = clampValue(startRect.width + deltaX, resolvedLimits.minWidth, resolvedLimits.maxWidth)
   }
 
   if (includesSouth) {
-    height = clampValue(startRect.height + deltaY, limits.minHeight, limits.maxHeight)
+    height = clampValue(startRect.height + deltaY, resolvedLimits.minHeight, resolvedLimits.maxHeight)
   }
 
   if (includesWest) {
-    const rawWidth = clampValue(startRect.width - deltaX, limits.minWidth, limits.maxWidth)
+    const rawWidth = clampValue(startRect.width - deltaX, resolvedLimits.minWidth, resolvedLimits.maxWidth)
     left = startRect.left + startRect.width - rawWidth
     width = rawWidth
   }
 
   if (includesNorth) {
-    const rawHeight = clampValue(startRect.height - deltaY, limits.minHeight, limits.maxHeight)
+    const rawHeight = clampValue(startRect.height - deltaY, resolvedLimits.minHeight, resolvedLimits.maxHeight)
     top = startRect.top + startRect.height - rawHeight
     height = rawHeight
   }
@@ -952,14 +953,14 @@ function getResizedRect(
 
   if (includesWest && left < horizontalBounds.min) {
     left = horizontalBounds.min
-    width = clampValue(startRect.left + startRect.width - left, limits.minWidth, limits.maxWidth)
+    width = clampValue(startRect.left + startRect.width - left, resolvedLimits.minWidth, resolvedLimits.maxWidth)
   } else if (!includesEast) {
     left = clampValue(left, horizontalBounds.min, horizontalBounds.max)
   }
 
   if (includesNorth && top < verticalBounds.min) {
     top = verticalBounds.min
-    height = clampValue(startRect.top + startRect.height - top, limits.minHeight, limits.maxHeight)
+    height = clampValue(startRect.top + startRect.height - top, resolvedLimits.minHeight, resolvedLimits.maxHeight)
   } else if (!includesSouth) {
     top = clampValue(top, verticalBounds.min, verticalBounds.max)
   }
@@ -1023,10 +1024,11 @@ function applyRect(nextRect: WindowRect, options: { limits?: WindowSizeLimits } 
   scheduleGeometryChange()
 }
 
-function clampRect(nextRect: WindowRect, limits: WindowSizeLimits = getSizeLimits(getViewport())): WindowRect {
+function clampRect(nextRect: WindowRect, limits?: WindowSizeLimits): WindowRect {
   const viewport = getViewport()
-  const width = clampValue(nextRect.width, limits.minWidth, limits.maxWidth)
-  const height = clampValue(nextRect.height, limits.minHeight, limits.maxHeight)
+  const resolvedLimits = limits ?? getSizeLimits(viewport)
+  const width = clampValue(nextRect.width, resolvedLimits.minWidth, resolvedLimits.maxWidth)
+  const height = clampValue(nextRect.height, resolvedLimits.minHeight, resolvedLimits.maxHeight)
   const horizontalBounds = getHorizontalBounds(width, viewport.width)
   const verticalBounds = getVerticalBounds(viewport.height)
 
@@ -1111,18 +1113,22 @@ defineExpose({
 })
 </script>
 
-<style scoped>
-:global(.window-dialog--interacting) {
+<style>
+.window-dialog--interacting {
   user-select: none;
 }
 
-:global(.window-dialog-layer) {
+.window-dialog__origin-anchor {
+  display: none;
+}
+
+.window-dialog-layer {
   position: fixed;
   inset: 0;
   pointer-events: none;
 }
 
-:global(.window-dialog-overlay) {
+.window-dialog-overlay {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.18);
@@ -1130,11 +1136,34 @@ defineExpose({
   pointer-events: auto;
 }
 
-:global(.window-dialog-overlay.is-clickable) {
+.window-dialog-overlay.is-clickable {
   cursor: default;
 }
 
-:global(.window-dialog) {
+.window-dialog {
+  --window-dialog-surface: var(--window-dialog-bg-color, Canvas);
+  --window-dialog-text-color: CanvasText;
+  --window-dialog-accent-start: #3b82f6;
+  --window-dialog-accent-end: #2563eb;
+  --window-dialog-accent-shadow: rgba(37, 99, 235, 0.16);
+  --window-dialog-muted-color: color-mix(in srgb, var(--window-dialog-text-color, CanvasText) 62%, transparent);
+  --window-dialog-header-bg-start: color-mix(
+    in srgb,
+    var(--window-dialog-surface, Canvas) 96%,
+    var(--window-dialog-text-color, CanvasText) 4%
+  );
+  --window-dialog-header-bg-end: color-mix(
+    in srgb,
+    var(--window-dialog-surface, Canvas) 90%,
+    var(--window-dialog-text-color, CanvasText) 10%
+  );
+  --window-dialog-subtle-bg: color-mix(
+    in srgb,
+    var(--window-dialog-surface, Canvas) 92%,
+    var(--window-dialog-text-color, CanvasText) 8%
+  );
+  --window-dialog-hover-bg: color-mix(in srgb, var(--window-dialog-text-color, CanvasText) 10%, transparent);
+  --window-dialog-hover-color: color-mix(in srgb, var(--window-dialog-text-color, CanvasText) 84%, transparent);
   position: fixed;
   display: flex;
   flex-direction: column;
@@ -1143,33 +1172,13 @@ defineExpose({
   overflow: visible;
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: var(--window-dialog-radius, 14px);
-  background: var(--window-dialog-surface);
-  color: var(--window-dialog-text-color);
+  background: var(--window-dialog-surface, Canvas);
+  color: var(--window-dialog-text-color, CanvasText);
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.04);
   pointer-events: auto;
-  --window-dialog-surface: var(--window-dialog-bg-color, var(--bgColor, Canvas));
-  --window-dialog-text-color: CanvasText;
-  --window-dialog-muted-color: color-mix(in srgb, var(--window-dialog-text-color) 62%, transparent);
-  --window-dialog-header-bg-start: color-mix(
-    in srgb,
-    var(--window-dialog-surface) 96%,
-    var(--window-dialog-text-color) 4%
-  );
-  --window-dialog-header-bg-end: color-mix(
-    in srgb,
-    var(--window-dialog-surface) 90%,
-    var(--window-dialog-text-color) 10%
-  );
-  --window-dialog-subtle-bg: color-mix(
-    in srgb,
-    var(--window-dialog-surface) 92%,
-    var(--window-dialog-text-color) 8%
-  );
-  --window-dialog-hover-bg: color-mix(in srgb, var(--window-dialog-text-color) 10%, transparent);
-  --window-dialog-hover-color: color-mix(in srgb, var(--window-dialog-text-color) 84%, transparent);
 }
 
-:global(.window-dialog__surface) {
+.window-dialog__surface {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1178,24 +1187,24 @@ defineExpose({
   max-height: inherit;
   overflow: hidden;
   border-radius: inherit;
-  background: var(--window-dialog-surface);
-  color: var(--window-dialog-text-color);
+  background: var(--window-dialog-surface, Canvas);
+  color: var(--window-dialog-text-color, CanvasText);
 }
 
-:global(.window-dialog--auto-height:not(.window-dialog--maximized) .window-dialog__surface) {
+.window-dialog--auto-height:not(.window-dialog--maximized) .window-dialog__surface {
   height: auto;
 }
 
-:global(.window-dialog--maximized) {
+.window-dialog--maximized {
   border: none;
   border-radius: 0;
 }
 
-:global(.window-dialog--active) {
+.window-dialog--active {
   box-shadow: 0 24px 48px rgba(15, 23, 42, 0.14), 0 8px 16px rgba(15, 23, 42, 0.08);
 }
 
-:global(.window-dialog__header) {
+.window-dialog__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1204,17 +1213,17 @@ defineExpose({
   padding: 0 0 0 16px;
   background: linear-gradient(
     180deg,
-    var(--window-dialog-header-bg-start) 0%,
-    var(--window-dialog-header-bg-end) 100%
+    var(--window-dialog-header-bg-start, Canvas) 0%,
+    var(--window-dialog-header-bg-end, Canvas) 100%
   );
   cursor: default;
 }
 
-:global(.window-dialog__header.is-drag-disabled) {
+.window-dialog__header.is-drag-disabled {
   cursor: default;
 }
 
-:global(.window-dialog__title-wrap) {
+.window-dialog__title-wrap {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1222,23 +1231,23 @@ defineExpose({
   flex: 1;
 }
 
-:global(.window-dialog__accent) {
+.window-dialog__accent {
   width: 8px;
   height: 8px;
   border-radius: 999px;
   background: linear-gradient(
     135deg,
-    var(--window-dialog-accent-start) 0%,
-    var(--window-dialog-accent-end) 100%
+    var(--window-dialog-accent-start, #3b82f6) 0%,
+    var(--window-dialog-accent-end, #2563eb) 100%
   );
-  box-shadow: 0 0 0 4px var(--window-dialog-accent-shadow);
+  box-shadow: 0 0 0 4px var(--window-dialog-accent-shadow, rgba(37, 99, 235, 0.16));
   flex-shrink: 0;
 }
 
-:global(.window-dialog__title) {
+.window-dialog__title {
   margin: 0;
   overflow: hidden;
-  color: var(--window-dialog-text-color);
+  color: var(--window-dialog-text-color, CanvasText);
   font-size: 15px;
   font-weight: 600;
   line-height: 1.4;
@@ -1246,7 +1255,7 @@ defineExpose({
   white-space: nowrap;
 }
 
-:global(.window-dialog__controls) {
+.window-dialog__controls {
   display: flex;
   align-items: stretch;
   align-self: stretch;
@@ -1254,7 +1263,7 @@ defineExpose({
   flex-shrink: 0;
 }
 
-:global(.window-dialog__control) {
+.window-dialog__control {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1264,11 +1273,11 @@ defineExpose({
   border: none;
   border-radius: 0;
   background: transparent;
-  color: var(--window-dialog-muted-color);
+  color: var(--window-dialog-muted-color, #64748b);
   cursor: default;
 }
 
-:global(.window-dialog__control svg) {
+.window-dialog__control svg {
   width: 12px;
   height: 12px;
   fill: none;
@@ -1278,35 +1287,35 @@ defineExpose({
   stroke-width: 1.5;
 }
 
-:global(.window-dialog__control:hover) {
-  background: var(--window-dialog-hover-bg);
-  color: var(--window-dialog-hover-color);
+.window-dialog__control:hover {
+  background: var(--window-dialog-hover-bg, rgba(15, 23, 42, 0.1));
+  color: var(--window-dialog-hover-color, #334155);
 }
 
-:global(.window-dialog__control--close:hover) {
+.window-dialog__control--close:hover {
   background: #ef4444;
   color: #ffffff;
 }
 
-:global(.window-dialog__body) {
+.window-dialog__body {
   flex: 1 1 auto;
   min-height: 0;
   padding: 20px 24px;
   overflow: auto;
-  background: var(--window-dialog-surface);
-  color: var(--window-dialog-text-color);
+  background: var(--window-dialog-surface, Canvas);
+  color: var(--window-dialog-text-color, CanvasText);
 }
 
-:global(.window-dialog__footer) {
+.window-dialog__footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
   padding: 14px 20px;
-  background: var(--window-dialog-subtle-bg);
+  background: var(--window-dialog-subtle-bg, rgba(15, 23, 42, 0.06));
 }
 
-:global(.window-dialog__resize-handle) {
+.window-dialog__resize-handle {
   position: absolute;
   z-index: 3;
   width: 10px;
@@ -1314,8 +1323,8 @@ defineExpose({
   pointer-events: auto;
 }
 
-:global(.window-dialog__resize-handle--n),
-:global(.window-dialog__resize-handle--s) {
+.window-dialog__resize-handle--n,
+.window-dialog__resize-handle--s {
   right: 10px;
   left: 10px;
   width: auto;
@@ -1323,16 +1332,16 @@ defineExpose({
   cursor: ns-resize;
 }
 
-:global(.window-dialog__resize-handle--n) {
+.window-dialog__resize-handle--n {
   top: -10px;
 }
 
-:global(.window-dialog__resize-handle--s) {
+.window-dialog__resize-handle--s {
   bottom: -10px;
 }
 
-:global(.window-dialog__resize-handle--e),
-:global(.window-dialog__resize-handle--w) {
+.window-dialog__resize-handle--e,
+.window-dialog__resize-handle--w {
   top: 10px;
   bottom: 10px;
   width: 10px;
@@ -1340,44 +1349,44 @@ defineExpose({
   cursor: ew-resize;
 }
 
-:global(.window-dialog__resize-handle--e) {
+.window-dialog__resize-handle--e {
   right: -10px;
 }
 
-:global(.window-dialog__resize-handle--w) {
+.window-dialog__resize-handle--w {
   left: -10px;
 }
 
-:global(.window-dialog__resize-handle--ne),
-:global(.window-dialog__resize-handle--sw) {
+.window-dialog__resize-handle--ne,
+.window-dialog__resize-handle--sw {
   width: 18px;
   height: 18px;
   cursor: nesw-resize;
 }
 
-:global(.window-dialog__resize-handle--nw),
-:global(.window-dialog__resize-handle--se) {
+.window-dialog__resize-handle--nw,
+.window-dialog__resize-handle--se {
   width: 18px;
   height: 18px;
   cursor: nwse-resize;
 }
 
-:global(.window-dialog__resize-handle--ne) {
+.window-dialog__resize-handle--ne {
   top: -12px;
   right: -12px;
 }
 
-:global(.window-dialog__resize-handle--nw) {
+.window-dialog__resize-handle--nw {
   top: -12px;
   left: -12px;
 }
 
-:global(.window-dialog__resize-handle--se) {
+.window-dialog__resize-handle--se {
   right: -12px;
   bottom: -12px;
 }
 
-:global(.window-dialog__resize-handle--sw) {
+.window-dialog__resize-handle--sw {
   bottom: -12px;
   left: -12px;
 }

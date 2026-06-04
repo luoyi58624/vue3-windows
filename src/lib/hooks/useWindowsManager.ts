@@ -38,7 +38,8 @@ const WINDOW_GEOMETRY_STORE_VERSION = 3
 const DEFAULT_GEOMETRY_GROUP_KEY = 'global'
 const GEOMETRY_PERSIST_DEBOUNCE_DELAY = 120
 
-export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[]>([]), groupId?: WindowsGroupId) {
+export function useWindowsManager(model?: Ref<WindowRecord[]>, groupId?: WindowsGroupId) {
+  const windowModel = model ?? ref<WindowRecord[]>([])
   const windowRefs = new Map<WindowId, WindowExpose>()
   const restoreStates = new Map<WindowId, RestorableWindowState>()
   const geometryState = createGeometryState()
@@ -46,7 +47,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
   let geometryPersistTimer: ReturnType<typeof window.setTimeout> | null = null
 
   const api: WindowsRef = {
-    windows: model,
+    windows: windowModel,
     create,
     close,
     closeAll,
@@ -100,7 +101,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
       component: component ? markRaw(component) : component,
     }
 
-    model.value = [...model.value, windowRecord]
+    windowModel.value = [...windowModel.value, windowRecord]
     syncRestoreState(id, windowRecord.state)
     if (windowRecord.state !== 'minimized') {
       moveTopOnNextTick(id)
@@ -126,7 +127,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
     flushGeometryState()
     restoreStates.clear()
     windowRefs.clear()
-    model.value = []
+    windowModel.value = []
     cleanupGeometryPersist()
   }
 
@@ -158,7 +159,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
   }
 
   function get(id: WindowId) {
-    return model.value.find((windowRecord) => windowRecord.id === id)
+    return windowModel.value.find((windowRecord) => windowRecord.id === id)
   }
 
   function update(id: WindowId, patch: Partial<WindowOptions>) {
@@ -222,7 +223,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
   }
 
   function updateWindowState(id: WindowRecord['id'], state: ManagedWindowState) {
-    const target = model.value.find((windowRecord) => windowRecord.id === id)
+    const target = windowModel.value.find((windowRecord) => windowRecord.id === id)
     if (!target) {
       return
     }
@@ -232,7 +233,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
   }
 
   function updateWindowGeometry(id: WindowRecord['id'], rect: WindowGeometry) {
-    const target = model.value.find((windowRecord) => windowRecord.id === id)
+    const target = windowModel.value.find((windowRecord) => windowRecord.id === id)
     if (!target) {
       return
     }
@@ -270,7 +271,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
   function handleClosed(id: WindowRecord['id']) {
     restoreStates.delete(id)
     windowRefs.delete(id)
-    model.value = model.value.filter((windowRecord) => windowRecord.id !== id)
+    windowModel.value = windowModel.value.filter((windowRecord) => windowRecord.id !== id)
   }
 
   function syncGeometryState(id: WindowRecord['id'], rect: WindowGeometry) {
@@ -677,7 +678,7 @@ export function useWindowsManager(model: Ref<WindowRecord[]> = ref<WindowRecord[
   }
 
   return {
-    model,
+    model: windowModel,
     api,
     setWindowRef,
     updateWindowState,

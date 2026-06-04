@@ -23,16 +23,18 @@ export type ContextualWindowRecord = WindowRecord & {
 }
 
 export function captureWindowOwnerContext(
-  instance: ComponentInternalInstance | null = getCurrentInstance(),
+  instance?: ComponentInternalInstance | null,
 ): WindowOwnerContext | null {
-  if (!instance) {
+  const currentInstance = instance ?? getCurrentInstance()
+
+  if (!currentInstance) {
     return null
   }
 
-  const instanceWithProvides = instance as InstanceWithProvides
+  const instanceWithProvides = currentInstance as InstanceWithProvides
 
   return {
-    appContext: instance.appContext,
+    appContext: currentInstance.appContext,
     provides: instanceWithProvides.provides,
   }
 }

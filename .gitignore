@@ -5,3 +5,5 @@ dist
 docs/.vitepress/cache
 examples/native/dist
 examples/native/.dev-server.*.log
+.idea
+.vscode
