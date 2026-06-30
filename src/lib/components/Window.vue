@@ -238,6 +238,7 @@ const panelRef = ref<HTMLElement>()
 const isDragging = ref(false)
 const hasInitialized = ref(false)
 const hasManualHeight = ref(false)
+const shouldMaintainAutoHeightCenter = ref(false)
 const isActiveWindow = ref(false)
 const panelTarget = ref<string | HTMLElement>('body')
 const zIndex = ref(normalizeZIndexBase(props.zIndex))
@@ -430,6 +431,7 @@ function initializeWindow() {
     hasManualHeight.value = true
   }
 
+  shouldMaintainAutoHeightCenter.value = shouldCenterAutoHeightAfterRender()
   applyRect(createInitialRect())
   hasInitialized.value = true
 }
@@ -450,14 +452,22 @@ function createInitialRect() {
         width,
         height,
       }
-    : {
-        left: Math.round((viewport.width - width) / 2),
-        top: Math.round((viewport.height - height) / 2),
-        width,
-        height,
-      }
+    : getCenteredRect(width, height, viewport)
 
   return clampRect(candidate, limits)
+}
+
+function getCenteredRect(width: number, height: number, viewport = getViewport()): WindowRect {
+  return {
+    left: Math.round((viewport.width - width) / 2),
+    top: Math.round((viewport.height - height) / 2),
+    width,
+    height,
+  }
+}
+
+function shouldCenterAutoHeightAfterRender() {
+  return props.height === undefined && !props.initialRect && !props.lastPosition
 }
 
 function bringToFront() {
@@ -541,6 +551,7 @@ function startDrag(event: MouseEvent) {
     return
   }
 
+  shouldMaintainAutoHeightCenter.value = false
   bringToFront()
 
   if (state.value === 'maximized') {
@@ -622,6 +633,7 @@ function startResize(direction: ResizeDirection, event: MouseEvent) {
     return
   }
 
+  shouldMaintainAutoHeightCenter.value = false
   bringToFront()
   const startRect = getCurrentWindowRect()
   const resizeLimits = getResizeSizeLimits(startRect, direction)
@@ -906,7 +918,35 @@ function emitGeometryChange() {
     return
   }
 
-  emit('geometry-change', getRenderedWindowRect())
+  emit('geometry-change', alignAutoHeightCenter(getRenderedWindowRect()))
+}
+
+function alignAutoHeightCenter(renderedRect: WindowRect): WindowRect {
+  if (!shouldMaintainAutoHeightCenter.value || !isAutoHeightWindow.value || state.value !== 'normal') {
+    return renderedRect
+  }
+
+  const viewport = getViewport()
+  const centeredRect = clampRect({
+    ...getCenteredRect(windowRect.width, renderedRect.height, viewport),
+    height: renderedRect.height,
+  })
+
+  if (!isSameWindowRect(windowRect, centeredRect)) {
+    windowRect.left = centeredRect.left
+    windowRect.top = centeredRect.top
+    windowRect.width = centeredRect.width
+    windowRect.height = centeredRect.height
+    scheduleGeometryChange()
+  }
+
+  return {
+    ...renderedRect,
+    left: centeredRect.left,
+    top: centeredRect.top,
+    width: centeredRect.width,
+    height: centeredRect.height,
+  }
 }
 
 function getResizedRect(
@@ -1038,6 +1078,13 @@ function clampRect(nextRect: WindowRect, limits?: WindowSizeLimits): WindowRect 
     left: clampValue(nextRect.left, horizontalBounds.min, horizontalBounds.max),
     top: clampValue(nextRect.top, verticalBounds.min, verticalBounds.max),
   }
+}
+
+function isSameWindowRect(first: WindowRect, second: WindowRect) {
+  return first.left === second.left
+    && first.top === second.top
+    && first.width === second.width
+    && first.height === second.height
 }
 
 function getSizeLimits(viewport: { width: number, height: number }): WindowSizeLimits {

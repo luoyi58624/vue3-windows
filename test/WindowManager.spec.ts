@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick } from 'vue'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useCurrentWindow, useWindows, windowSetup } from '../src'
 import type { UseWindowsOptions, WindowsRef } from '../src'
@@ -51,6 +51,20 @@ function readGeometryStore() {
   const value = window.localStorage.getItem('vue3-windows:geometry')
   expect(value).not.toBeNull()
   return JSON.parse(value!)
+}
+
+function createDomRect(left: number, top: number, width: number, height: number): DOMRect {
+  return {
+    x: left,
+    y: top,
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+    toJSON: () => ({}),
+  } as DOMRect
 }
 
 async function flushWindows() {
@@ -546,6 +560,50 @@ describe('window manager state', () => {
     const secondRect = windows?.get('second-global-centered')?.rect
     expect(secondRect?.left).toBe(firstRect.left)
     expect(secondRect?.top).toBe(firstRect.top)
+  })
+
+  it('keeps auto-height windows centered after the rendered height is measured', async () => {
+    const renderedHeight = 620
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    rectSpy.mockImplementation(function (this: HTMLElement) {
+      if (!this.classList.contains('window-dialog')) {
+        return createDomRect(0, 0, 0, 0)
+      }
+
+      const left = Number.parseFloat(this.style.left || '0')
+      const top = Number.parseFloat(this.style.top || '0')
+      const width = Number.parseFloat(this.style.width || '0')
+      return createDomRect(left, top, width, renderedHeight)
+    })
+
+    try {
+      let windows: WindowsRef | null = null
+      mount(BindWindows, {
+        props: {
+          bind: (api: WindowsRef) => {
+            windows = api
+          },
+          options: {
+            rememberPosition: false,
+            width: 720,
+          },
+        },
+      })
+
+      await flushWindows()
+      windows?.create({
+        id: 'auto-height-centered',
+        title: 'Auto Height Centered',
+        component: ActionWindow,
+      })
+      await flushWindows()
+
+      const rect = windows?.get('auto-height-centered')?.rect
+      expect(rect?.height).toBe(renderedHeight)
+      expect(rect?.top).toBe(Math.round((window.innerHeight - renderedHeight) / 2))
+    } finally {
+      rectSpy.mockRestore()
+    }
   })
 
   it('reopens the same id centered when rememberPosition is false', async () => {
