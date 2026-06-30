@@ -4,7 +4,7 @@
 
 设置全局默认配置。它会合并传入字段，`undefined` 字段会清除对应全局默认值。
 
-支持的默认配置：`outsideClickBehavior`、`width`、`height`、`minWidth`、`minHeight`、`maxWidth`、`maxHeight`、`minimizable`、`maximizable`、`closable`、`accentType`、`bgColor`、`zIndex`。
+支持的默认配置：`outsideClickBehavior`、`width`、`height`、`minWidth`、`minHeight`、`maxWidth`、`maxHeight`、`minimizable`、`maximizable`、`closable`、`accentType`、`bgColor`、`zIndex`、`rememberPosition`。
 
 `zIndex` 是窗口渲染层级的起始值，内置默认值为 `100`。多窗口置顶时会在该起始值基础上递增；如果需要避开 Element Plus 等组件库弹出层，通常保持默认值即可。
 
@@ -52,6 +52,7 @@
 | `accentType` | `'primary' \| 'success' \| 'warning' \| 'danger' \| 'info'` | 窗口强调色。 |
 | `bgColor` | `string` | 窗口背景色。 |
 | `zIndex` | `number` | 窗口渲染层级的起始 z-index，默认 `100`；多窗口置顶时会在该值基础上递增。 |
+| `rememberPosition` | `boolean` | 是否复用最近位置和同 `id` 的历史位置，默认 `true`；设为 `false` 时按当前尺寸居中打开。 |
 
 ### 窗口位置和尺寸记忆
 
@@ -76,6 +77,7 @@
 - `last_position` 按分组记录最后一个 `normal` 状态窗口的位置。创建新窗口且没有历史 `rect` 时，会从当前分组的位置偏移打开；没有记录时居中打开。
 - `windows_record` 先按分组存储，再按序列化后的 `id` 记录该窗口最近一次 `normal` 状态的位置和宽高。关闭页面并刷新后，再次用同一个分组和同一个 `id` 创建窗口，会从 `localStorage` 复用这份位置和尺寸。
 - `create(options)` 显式传入的 `width` / `height` 优先于 `windows_record` 缓存尺寸，但位置仍复用同 `id` 的缓存位置。
+- `rememberPosition: false` 可用于 `windowSetup()`、`useWindows(options)` 或 `create(options)`；关闭后不会按最近位置偏移，也不会按同 `id` 历史位置打开，而是按当前尺寸居中打开。
 - 最大化渲染出的全屏尺寸不会写入 `windows_record`，也不会覆盖 `WindowRecord.rect`。
 - `string` / `number` id 会完整持久化；当 `id` 为空且回退到 `component` 时，会使用组件 `name` / `__name` 作为实际 id 和持久化 key，匿名组件会继续回退到 `title` 或全局自增。
 

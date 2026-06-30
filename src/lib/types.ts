@@ -71,6 +71,12 @@ export interface WindowOptions {
    */
   zIndex?: number
   /**
+   * 是否在创建窗口时复用最近位置和同 `id` 的历史位置，默认 `true`。
+   *
+   * 设为 `false` 时，窗口会按当前尺寸居中打开。
+   */
+  rememberPosition?: boolean
+  /**
    * 窗口内容组件。
    *
    * 当 `id` 为空时，会优先尝试用组件名作为实际 id；
@@ -133,6 +139,12 @@ export interface WindowsConfig {
    * 窗口渲染层级的起始 z-index，内置默认值为 `100`。
    */
   zIndex?: number
+  /**
+   * 是否在创建窗口时复用最近位置和同 `id` 的历史位置，默认 `true`。
+   *
+   * 设为 `false` 时，窗口会按当前尺寸居中打开。
+   */
+  rememberPosition?: boolean
 }
 
 export interface UseWindowsOptions extends WindowsConfig {

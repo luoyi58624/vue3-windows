@@ -3,7 +3,7 @@ import { defineComponent, h, nextTick } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { useCurrentWindow, useWindows, windowSetup } from '../src'
-import type { WindowsRef } from '../src'
+import type { UseWindowsOptions, WindowsRef } from '../src'
 
 const RUNTIME_KEY = '__window_dialog_runtime__'
 
@@ -21,6 +21,7 @@ const configReset = {
   accentType: undefined,
   bgColor: undefined,
   zIndex: undefined,
+  rememberPosition: undefined,
 }
 
 function resetWindowRuntime() {
@@ -59,6 +60,26 @@ async function flushWindows() {
 
 async function waitForGeometryPersist() {
   await new Promise((resolve) => window.setTimeout(resolve, 150))
+}
+
+async function dragWindow(panel: HTMLElement, deltaX: number, deltaY: number) {
+  const header = panel.querySelector<HTMLElement>('.window-dialog__header')
+  expect(header).toBeDefined()
+
+  header!.dispatchEvent(new MouseEvent('mousedown', {
+    bubbles: true,
+    button: 0,
+    clientX: 320,
+    clientY: 240,
+  }))
+  document.dispatchEvent(new MouseEvent('mousemove', {
+    bubbles: true,
+    clientX: 320 + deltaX,
+    clientY: 240 + deltaY,
+  }))
+  await flushWindows()
+  document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+  await flushWindows()
 }
 
 const ActionWindow = defineComponent({
@@ -109,9 +130,13 @@ const BindWindows = defineComponent({
       type: Function,
       required: true,
     },
+    options: {
+      type: Object,
+      default: () => ({}),
+    },
   },
   setup(props) {
-    const windows = useWindows()
+    const windows = useWindows(props.options as UseWindowsOptions)
     props.bind(windows)
 
     return () => h('div')
@@ -446,6 +471,89 @@ describe('window manager state', () => {
     const secondRect = windows?.get('second-position')?.rect
     expect(secondRect?.left).toBe(firstRect.left + 28)
     expect(secondRect?.top).toBe(firstRect.top + 28)
+  })
+
+  it('opens new windows centered when rememberPosition is false', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+        options: {
+          rememberPosition: false,
+          width: 520,
+          height: 330,
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'first-centered',
+      title: 'First Centered',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    const firstRect = { ...windows!.get('first-centered')!.rect! }
+
+    windows?.create({
+      id: 'second-centered',
+      title: 'Second Centered',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    const secondRect = windows?.get('second-centered')?.rect
+    expect(secondRect?.left).toBe(firstRect.left)
+    expect(secondRect?.top).toBe(firstRect.top)
+  })
+
+  it('reopens the same id centered when rememberPosition is false', async () => {
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+        options: {
+          rememberPosition: false,
+          width: 520,
+          height: 330,
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'centered-reopen',
+      title: 'Centered Reopen',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    const centeredRect = { ...windows!.get('centered-reopen')!.rect! }
+    const panel = findPanelByText('Centered Reopen')
+    expect(panel).toBeDefined()
+    await dragWindow(panel!, 96, 64)
+
+    const movedRect = { ...windows!.get('centered-reopen')!.rect! }
+    expect(movedRect.left).toBe(centeredRect.left + 96)
+    expect(movedRect.top).toBe(centeredRect.top + 64)
+
+    windows?.close('centered-reopen')
+    await flushWindows()
+    windows?.create({
+      id: 'centered-reopen',
+      title: 'Centered Reopen',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    const reopenedRect = windows?.get('centered-reopen')?.rect
+    expect(reopenedRect?.left).toBe(centeredRect.left)
+    expect(reopenedRect?.top).toBe(centeredRect.top)
   })
 
   it('reopens the same id with its cached normal rect unless create passes an explicit size', async () => {

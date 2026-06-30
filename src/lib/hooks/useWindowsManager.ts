@@ -232,7 +232,11 @@ export function useWindowsManager(model?: Ref<WindowRecord[]>, groupId?: Windows
     target.state = state
   }
 
-  function updateWindowGeometry(id: WindowRecord['id'], rect: WindowGeometry) {
+  function updateWindowGeometry(
+    id: WindowRecord['id'],
+    rect: WindowGeometry,
+    options: { rememberPosition?: boolean } = {},
+  ) {
     const target = windowModel.value.find((windowRecord) => windowRecord.id === id)
     if (!target) {
       return
@@ -250,12 +254,12 @@ export function useWindowsManager(model?: Ref<WindowRecord[]>, groupId?: Windows
       && currentRect.width === rect.width
       && currentRect.height === rect.height
     ) {
-      syncGeometryState(id, rect)
+      syncGeometryState(id, rect, options)
       return
     }
 
     target.rect = { ...rect }
-    syncGeometryState(id, rect)
+    syncGeometryState(id, rect, options)
   }
 
   function getLastWindowPosition() {
@@ -274,12 +278,30 @@ export function useWindowsManager(model?: Ref<WindowRecord[]>, groupId?: Windows
     windowModel.value = windowModel.value.filter((windowRecord) => windowRecord.id !== id)
   }
 
-  function syncGeometryState(id: WindowRecord['id'], rect: WindowGeometry) {
+  function syncGeometryState(
+    id: WindowRecord['id'],
+    rect: WindowGeometry,
+    options: { rememberPosition?: boolean } = {},
+  ) {
+    const storageId = getStorageWindowId(id)
+    if (options.rememberPosition === false) {
+      if (storageId) {
+        const previousRect = geometryState.windows_record.get(storageId)
+        geometryState.windows_record.set(storageId, {
+          left: previousRect?.left ?? rect.left,
+          top: previousRect?.top ?? rect.top,
+          width: rect.width,
+          height: rect.height,
+        })
+        persistGeometryState()
+      }
+      return
+    }
+
     geometryState.last_position = {
       left: rect.left,
       top: rect.top,
     }
-    const storageId = getStorageWindowId(id)
     if (storageId) {
       geometryState.windows_record.set(storageId, { ...rect })
     }

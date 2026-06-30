@@ -23,6 +23,7 @@ const configReset = {
   accentType: undefined,
   bgColor: undefined,
   zIndex: undefined,
+  rememberPosition: undefined,
 }
 
 function resetWindowRuntime() {

@@ -46,13 +46,6 @@ export function mountWindowsRenderer(
           const cachedGeometry = manager.getCachedWindowGeometry(windowRecord.id)
           const width = windowRecord.width ?? cachedGeometry?.width ?? options.width ?? globalOptions.width
           const height = windowRecord.height ?? options.height ?? globalOptions.height
-          const initialRect = windowRecord.rect ?? (cachedGeometry
-            ? {
-                ...cachedGeometry,
-                width: windowRecord.width ?? cachedGeometry.width,
-                height: windowRecord.height ?? cachedGeometry.height,
-              }
-            : undefined)
           const minWidth = windowRecord.minWidth ?? options.minWidth ?? globalOptions.minWidth
           const minHeight = windowRecord.minHeight ?? options.minHeight ?? globalOptions.minHeight
           const maxWidth = windowRecord.maxWidth ?? options.maxWidth ?? globalOptions.maxWidth
@@ -63,6 +56,15 @@ export function mountWindowsRenderer(
           const accentType = windowRecord.accentType ?? options.accentType ?? globalOptions.accentType
           const bgColor = windowRecord.bgColor ?? options.bgColor ?? globalOptions.bgColor
           const zIndex = windowRecord.zIndex ?? options.zIndex ?? globalOptions.zIndex
+          const rememberPosition = windowRecord.rememberPosition ?? options.rememberPosition ?? globalOptions.rememberPosition ?? true
+          const rememberedRect = windowRecord.rect ?? (cachedGeometry
+            ? {
+                ...cachedGeometry,
+                width: windowRecord.width ?? cachedGeometry.width,
+                height: windowRecord.height ?? cachedGeometry.height,
+              }
+            : undefined)
+          const initialRect = rememberPosition ? rememberedRect : undefined
 
           return h(Window, {
             key: getWindowRenderKey(windowRecord.id),
@@ -71,7 +73,7 @@ export function mountWindowsRenderer(
             title: windowRecord.title,
             windowId: windowRecord.id,
             initialRect,
-            lastPosition: manager.getLastWindowPosition(),
+            lastPosition: rememberPosition ? manager.getLastWindowPosition() : undefined,
             outsideClickBehavior,
             width,
             height,
@@ -88,7 +90,7 @@ export function mountWindowsRenderer(
             onMinimize: () => manager.updateWindowState(windowRecord.id, 'minimized'),
             onMaximize: () => manager.updateWindowState(windowRecord.id, 'maximized'),
             onRestore: () => manager.updateWindowState(windowRecord.id, 'normal'),
-            onGeometryChange: (rect: WindowGeometry) => manager.updateWindowGeometry(windowRecord.id, rect),
+            onGeometryChange: (rect: WindowGeometry) => manager.updateWindowGeometry(windowRecord.id, rect, { rememberPosition }),
             onOutsideClick: (behavior: WindowOutsideClickBehavior) => manager.handleOutsideClick(windowRecord.id, behavior),
             onClosed: () => manager.handleClosed(windowRecord.id),
           }, {
