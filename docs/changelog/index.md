@@ -2,6 +2,7 @@
 
 此页面由 `bun run release` 在发布时根据 git commit message 自动生成。
 
+- `cbc0c73` 2026-06-30 - fix: center auto height windows after measurement
 - `8e5c7ae` 2026-06-30 - feat: add window position memory option
 - `12e4b12` 2026-06-04 - fix: Resolve Oxc build bug
 - `0037d72` 2026-06-01 - fix: Fix the prop warning
