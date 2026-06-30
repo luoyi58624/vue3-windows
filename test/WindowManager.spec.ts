@@ -510,6 +510,44 @@ describe('window manager state', () => {
     expect(secondRect?.top).toBe(firstRect.top)
   })
 
+  it('opens new windows centered when global rememberPosition is false', async () => {
+    windowSetup({
+      rememberPosition: false,
+      width: 520,
+      height: 330,
+    })
+
+    let windows: WindowsRef | null = null
+    mount(BindWindows, {
+      props: {
+        bind: (api: WindowsRef) => {
+          windows = api
+        },
+      },
+    })
+
+    await flushWindows()
+    windows?.create({
+      id: 'first-global-centered',
+      title: 'First Global Centered',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    const firstRect = { ...windows!.get('first-global-centered')!.rect! }
+
+    windows?.create({
+      id: 'second-global-centered',
+      title: 'Second Global Centered',
+      component: ActionWindow,
+    })
+    await flushWindows()
+
+    const secondRect = windows?.get('second-global-centered')?.rect
+    expect(secondRect?.left).toBe(firstRect.left)
+    expect(secondRect?.top).toBe(firstRect.top)
+  })
+
   it('reopens the same id centered when rememberPosition is false', async () => {
     let windows: WindowsRef | null = null
     mount(BindWindows, {
